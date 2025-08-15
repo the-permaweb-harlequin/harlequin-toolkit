@@ -1,0 +1,18 @@
+{
+  "name": "harlequin-toolkit",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/the-permaweb-harlequin/harlequin-toolkit.git",
+  "author": "atticusofsparta <atticusofsparta@protonmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "next build",
+    "lint": "eslint ./src",
+    "test": "node ./run-tests.js",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2"
+  }
+}
