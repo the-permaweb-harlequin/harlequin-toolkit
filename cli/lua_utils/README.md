@@ -1,17 +1,11 @@
-# Lua Utils - Lua Bundler
+# Lua Utils
 
-This package provides a Go implementation of a Lua module bundler, ported from JavaScript. It resolves dependencies and creates a single executable Lua file from a project with multiple modules.
+This package provides various utils for interacting with lua.
 
-## Features
+<!-- TODO: Busted test runner with golua -->
+<!-- TODO: lcov runner with golua -->
 
-- **Dependency Resolution**: Automatically discovers and resolves `require()` statements
-- **Circular Dependency Protection**: Prevents infinite loops in dependency graphs
-- **Module Deduplication**: Handles modules imported with different names but same paths
-- **Topological Sorting**: Ensures dependencies are loaded in the correct order
-
-## Usage
-
-### Basic Bundling
+### Basic Bundling of code (output a single lua file)
 
 ```go
 package main
@@ -86,82 +80,3 @@ local helper = require("utils.helper")
 local config = require("config")
 print("Hello from main!")
 ```
-
-## API Reference
-
-### Types
-
-```go
-type Module struct {
-    Name    string   // Module name (e.g., "utils.helper")
-    Path    string   // File path
-    Content *string  // File content (nil if not found)
-}
-```
-
-### Functions
-
-#### `Bundle(entryLuaPath string) (string, error)`
-Bundles a Lua project starting from the entry file.
-
-**Parameters:**
-- `entryLuaPath`: Path to the main Lua file
-
-**Returns:**
-- Bundled Lua code as a string
-- Error if bundling fails
-
-#### `createProjectStructure(mainFile string) ([]Module, error)`
-Internal function that builds the dependency graph using DFS.
-
-#### `createExecutableFromProject(project []Module) (string, error)`
-Internal function that converts the project structure into executable Lua code.
-
-## How It Works
-
-1. **Dependency Discovery**: Starting from the entry file, the bundler uses regex to find `require()` statements
-2. **Depth-First Search**: Recursively explores each dependency to build a complete dependency graph
-3. **Topological Sort**: Orders modules so dependencies are loaded before dependents
-4. **Code Generation**: Wraps each module in a function and creates `package.loaded` mappings
-5. **Bundling**: Combines all modules into a single executable file
-
-## Supported Require Patterns
-
-The bundler recognizes these `require()` patterns:
-- `require("module")`
-- `require('module')`
-- `require("deeply.nested.module")`
-- `require ( "module" )` (with spaces)
-
-## Module Path Resolution
-
-Module names are converted to file paths using these rules:
-- Dots (`.`) become directory separators
-- `.lua` extension is automatically added
-- Paths are resolved relative to the entry file's directory
-
-Examples:
-- `require("config")` → `./config.lua`
-- `require("utils.helper")` → `./utils/helper.lua`
-
-## Error Handling
-
-The bundler handles these error cases:
-- Missing files (silently ignored - assumes external modules)
-- Circular dependencies (prevented by cycle detection)
-- Empty projects
-- File read errors
-
-## Testing
-
-Run the test suite:
-```bash
-go test ./lua_utils -v
-```
-
-The tests cover:
-- Module name transformation
-- Dependency discovery
-- Project structure creation
-- Full bundling workflow
-- Error cases
