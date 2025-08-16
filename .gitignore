@@ -10,3 +10,6 @@
 node_modules
 
 ._*
+
+# CLI test outputs
+cli/build/builders/test-output/

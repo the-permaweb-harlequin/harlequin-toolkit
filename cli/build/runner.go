@@ -39,6 +39,16 @@ func (br *BuildRunner) Close() error {
 	return br.dockerManager.Close()
 }
 
+// GetImageName returns the Docker image name being used
+func (br *BuildRunner) GetImageName() string {
+	return br.dockerManager.GetImageName()
+}
+
+// GetContainerName returns the Docker container name being used
+func (br *BuildRunner) GetContainerName() string {
+	return br.dockerManager.GetContainerName()
+}
+
 // StartBuildEnvironment ensures the build container is running and ready
 func (br *BuildRunner) StartBuildEnvironment(ctx context.Context) error {
 	fmt.Println("Starting build environment...")
