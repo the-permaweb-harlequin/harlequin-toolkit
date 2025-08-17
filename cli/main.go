@@ -15,6 +15,9 @@ import (
 )
 
 func main() {
+	// Ensure debug log file is closed on exit
+	defer debug.Close()
+	
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build/builders"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
+	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
 )
 
 // ViewState represents the current view in the TUI
@@ -272,6 +273,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+		
+		// If this was the main build step, transition to complete state
+		if msg.StepName == "Build" {
+			m.state = ViewBuildComplete
+			// Auto-quit after a short delay
+			return m, tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+				return tea.Quit()
+			})
+		}
+		
 		return m, nil
 		
 	case BuildOutputMsg:
@@ -347,7 +358,22 @@ func (m *Model) handleSelection() (tea.Model, tea.Cmd) {
 		
 	case ViewConfigReview:
 		if m.selectedIndex == 0 {
-			// Use current config, start build
+			// Use current config - load it first, then start build
+			cfg, err := m.loadConfigForEdit()
+			if err != nil {
+							// Use default config if loading fails
+			cfg = &config.Config{
+				Target:        config.DefaultTarget,
+				StackSize:     config.DefaultStackSize,
+				InitialMemory: config.DefaultInitialMemory,
+				MaximumMemory: config.DefaultMaximumMemory,
+				ComputeLimit:  config.DefaultComputeLimit,
+				ModuleFormat:  config.DefaultModuleFormat,
+				AOSGitHash:    config.DefaultAOSGitHash,
+			}
+			}
+			m.flow.Config = cfg
+			
 			m.state = ViewBuildRunning
 			return m, m.startBuild()
 		} else {
@@ -908,9 +934,42 @@ func (m *Model) getViewTitle() string {
 // startBuild initiates the build process
 func (m *Model) startBuild() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Implement actual build process with callbacks
-		// For now, just simulate
-		return BuildStepStartMsg{StepName: "Copy AOS Files"}
+		ctx := context.Background()
+		
+		// Debug: check if flow data is set properly
+		if m.flow.Entrypoint == "" {
+			debug.Error("Build validation failed: No entrypoint selected\n")
+			return BuildOutputMsg{Output: "❌ Error: No entrypoint selected"}
+		}
+		if m.flow.OutputDir == "" {
+			debug.Error("Build validation failed: No output directory selected\n")
+			return BuildOutputMsg{Output: "❌ Error: No output directory selected"}
+		}
+		if m.flow.Config == nil {
+			debug.Error("Build validation failed: No config loaded\n")
+			return BuildOutputMsg{Output: "❌ Error: No config loaded"}
+		}
+		
+		// Create AOSBuilder with the selected parameters
+		builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
+			Config:         m.flow.Config,
+			ConfigFilePath: nil, // Use default .harlequin.yaml
+			Entrypoint:     m.flow.Entrypoint,
+			OutputDir:      m.flow.OutputDir,
+			Callbacks:      builders.CallbacksDefault, // Use default callbacks for now
+		})
+
+		// Run the build
+		if err := builder.Build(ctx); err != nil {
+			// Log the detailed error to file and console
+			debug.Fatal("Build failed: %v", err)
+			
+			// Send error output and mark build as complete
+			return BuildStepCompleteMsg{StepName: "Build", Success: false}
+		}
+		
+		// Send success message and mark build as complete
+		return BuildStepCompleteMsg{StepName: "Build", Success: true}
 	}
 }
 
@@ -919,12 +978,15 @@ func (m *Model) loadAndEditConfig() (tea.Model, tea.Cmd) {
 	// Load config from file or use default
 	cfg, err := m.loadConfigForEdit()
 	if err != nil {
-		// Use default config if loading fails - use realistic default values in bytes
+		// Use default config if loading fails - use realistic default values
 		cfg = &config.Config{
-			Target:        32,           // WASM 32-bit
-			StackSize:     3145728,      // 3 MB in bytes
-			InitialMemory: 4194304,      // 4 MB in bytes
-			MaximumMemory: 1073741824,   // 1 GB in bytes
+			Target:        config.DefaultTarget,
+			StackSize:     config.DefaultStackSize,
+			InitialMemory: config.DefaultInitialMemory,
+			MaximumMemory: config.DefaultMaximumMemory,
+			ComputeLimit:  config.DefaultComputeLimit,
+			ModuleFormat:  config.DefaultModuleFormat,
+			AOSGitHash:    config.DefaultAOSGitHash,
 		}
 	}
 	
