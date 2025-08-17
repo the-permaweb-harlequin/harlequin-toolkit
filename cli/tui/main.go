@@ -112,6 +112,14 @@ type BuildFlow struct {
 	OutputDir    string
 	Config       *config.Config
 	ConfigEdited bool
+	BuildResult  *BuildResult // Store build result for post-TUI logging
+}
+
+// BuildResult holds the result of a build operation
+type BuildResult struct {
+	Success bool
+	Error   error
+	Flow    *BuildFlow
 }
 
 // RunBuildTUI starts the interactive build TUI
@@ -141,6 +149,11 @@ func RunBuildTUI(ctx context.Context) error {
 	// Run the program
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
+	}
+
+	// After TUI exits, log build results to console
+	if m.flow.BuildResult != nil {
+		logBuildResult(m.flow.BuildResult)
 	}
 
 	return nil
@@ -1006,72 +1019,36 @@ func (m *Model) startBuild() tea.Cmd {
 			return BuildOutputMsg{Output: "❌ Error: No config loaded"}
 		}
 		
-		// Create custom callbacks that send messages to TUI
+		// Create custom callbacks that only update step status (no output messages)
 		callbacks := &builders.BuildCallbacks{
 			OnCopyAOSFiles: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ AOS workspace prepared"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to prepare AOS workspace"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: info.Success})
 				}
 			},
 			OnBundleLua: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ Lua project bundled"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to bundle Lua project"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: info.Success})
 				}
 			},
 			OnInjectLua: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ Code injected into AOS process"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to inject code"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: info.Success})
 				}
 			},
 			OnWasmCompile: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ WASM compilation completed"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to compile WASM"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: info.Success})
 				}
 			},
 			OnCopyOutputs: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ Build outputs copied"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to copy outputs"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: info.Success})
 				}
 			},
 			OnCleanup: func(ctx context.Context, info builders.BuildStepInfo) {
 				if m.program != nil {
-					if info.Success {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: true})
-						m.program.Send(BuildOutputMsg{Output: "✅ Workspace cleaned up"})
-					} else {
-						m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: false})
-						m.program.Send(BuildOutputMsg{Output: "❌ Failed to clean workspace"})
-					}
+					m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: info.Success})
 				}
 			},
 		}
@@ -1098,11 +1075,63 @@ func (m *Model) startBuild() tea.Cmd {
 
 		// Run the build
 		if err := builder.Build(ctx); err != nil {
-			// Log the detailed error to file and console
-			debug.Fatal("Build failed: %v", err)
+			// Log the detailed error to debug file
+			debug.Error("Build failed with error: %v\n", err)
+			debug.Error("Build Configuration:\n")
+			debug.Error("  Entrypoint: %s\n", m.flow.Entrypoint)
+			debug.Error("  Output Directory: %s\n", m.flow.OutputDir)
+			debug.Error("  Build Type: %s\n", m.flow.BuildType)
+			debug.Error("  Sub Type: %s\n", m.flow.SubType)
+			debug.Error("  Config Edited: %t\n", m.flow.ConfigEdited)
+			if m.flow.Config != nil {
+				debug.Error("  Config Details:\n")
+				debug.Error("    Target: %d (WASM %d-bit)\n", m.flow.Config.Target, m.flow.Config.Target)
+				debug.Error("    Stack Size: %d bytes (%.1f MB)\n", m.flow.Config.StackSize, float64(m.flow.Config.StackSize)/1024/1024)
+				debug.Error("    Initial Memory: %d bytes (%.1f MB)\n", m.flow.Config.InitialMemory, float64(m.flow.Config.InitialMemory)/1024/1024)
+				debug.Error("    Maximum Memory: %d bytes (%.1f MB)\n", m.flow.Config.MaximumMemory, float64(m.flow.Config.MaximumMemory)/1024/1024)
+				debug.Error("    Compute Limit: %s\n", m.flow.Config.ComputeLimit)
+				debug.Error("    Module Format: %s\n", m.flow.Config.ModuleFormat)
+				debug.Error("    AOS Git Hash: %s\n", m.flow.Config.AOSGitHash)
+			} else {
+				debug.Error("  Config: nil\n")
+			}
+			debug.Fatal("Build process terminated with error")
+			
+			// Store result for post-TUI console logging
+			m.flow.BuildResult = &BuildResult{
+				Success: false,
+				Error:   err,
+				Flow:    m.flow,
+			}
 			
 			// Send error output and mark build as complete
 			return BuildStepCompleteMsg{StepName: "Build", Success: false}
+		}
+		
+		// Log successful build to debug file
+		debug.Info("Build completed successfully!\n")
+		debug.Info("Build Configuration:\n")
+		debug.Info("  Entrypoint: %s\n", m.flow.Entrypoint)
+		debug.Info("  Output Directory: %s\n", m.flow.OutputDir)
+		debug.Info("  Build Type: %s\n", m.flow.BuildType)
+		debug.Info("  Sub Type: %s\n", m.flow.SubType)
+		debug.Info("  Config Edited: %t\n", m.flow.ConfigEdited)
+		if m.flow.Config != nil {
+			debug.Info("  Config Details:\n")
+			debug.Info("    Target: %d (WASM %d-bit)\n", m.flow.Config.Target, m.flow.Config.Target)
+			debug.Info("    Stack Size: %d bytes (%.1f MB)\n", m.flow.Config.StackSize, float64(m.flow.Config.StackSize)/1024/1024)
+			debug.Info("    Initial Memory: %d bytes (%.1f MB)\n", m.flow.Config.InitialMemory, float64(m.flow.Config.InitialMemory)/1024/1024)
+			debug.Info("    Maximum Memory: %d bytes (%.1f MB)\n", m.flow.Config.MaximumMemory, float64(m.flow.Config.MaximumMemory)/1024/1024)
+			debug.Info("    Compute Limit: %s\n", m.flow.Config.ComputeLimit)
+			debug.Info("    Module Format: %s\n", m.flow.Config.ModuleFormat)
+			debug.Info("    AOS Git Hash: %s\n", m.flow.Config.AOSGitHash)
+		}
+		
+		// Store result for post-TUI console logging
+		m.flow.BuildResult = &BuildResult{
+			Success: true,
+			Error:   nil,
+			Flow:    m.flow,
 		}
 		
 		// Send success message and mark build as complete
@@ -1743,4 +1772,47 @@ func parseInt(s, fieldName string) (int, error) {
 		return 0, fmt.Errorf("invalid value for %s: %s", fieldName, s)
 	}
 	return val, nil
+}
+
+// logBuildResult logs the build result to console after TUI exits
+func logBuildResult(result *BuildResult) {
+	fmt.Println() // Add some space after TUI
+	
+	if result.Success {
+		// Success logging
+		fmt.Printf("✅ Build Successful!\n")
+		fmt.Printf("📋 Build Configuration:\n")
+		fmt.Printf("   Entrypoint: %s\n", result.Flow.Entrypoint)
+		fmt.Printf("   Output Dir: %s\n", result.Flow.OutputDir)
+		fmt.Printf("   Build Type: %s (%s)\n", result.Flow.BuildType, result.Flow.SubType)
+		if result.Flow.Config != nil {
+			fmt.Printf("   Target: WASM %d-bit\n", result.Flow.Config.Target)
+			fmt.Printf("   Memory: %.1f MB stack, %.1f MB initial, %.1f MB max\n", 
+				float64(result.Flow.Config.StackSize)/1024/1024,
+				float64(result.Flow.Config.InitialMemory)/1024/1024,
+				float64(result.Flow.Config.MaximumMemory)/1024/1024)
+			fmt.Printf("   AOS Hash: %s\n", result.Flow.Config.AOSGitHash)
+		}
+		fmt.Printf("📁 Output available at: %s\n", result.Flow.OutputDir)
+		fmt.Printf("📄 Build logs: %s\n", debug.LogFilePath)
+	} else {
+		// Failure logging
+		fmt.Printf("❌ Build Failed!\n")
+		fmt.Printf("📋 Build Configuration:\n")
+		fmt.Printf("   Entrypoint: %s\n", result.Flow.Entrypoint)
+		fmt.Printf("   Output Dir: %s\n", result.Flow.OutputDir)
+		fmt.Printf("   Build Type: %s (%s)\n", result.Flow.BuildType, result.Flow.SubType)
+		if result.Flow.Config != nil {
+			fmt.Printf("   Target: WASM %d-bit\n", result.Flow.Config.Target)
+			fmt.Printf("   Memory: %.1f MB stack, %.1f MB initial, %.1f MB max\n", 
+				float64(result.Flow.Config.StackSize)/1024/1024,
+				float64(result.Flow.Config.InitialMemory)/1024/1024,
+				float64(result.Flow.Config.MaximumMemory)/1024/1024)
+			fmt.Printf("   AOS Hash: %s\n", result.Flow.Config.AOSGitHash)
+		}
+		fmt.Printf("🔥 Error: %v\n", result.Error)
+		fmt.Printf("📄 Detailed logs: %s\n", debug.LogFilePath)
+	}
+	
+	fmt.Println() // Add some space after logging
 }
