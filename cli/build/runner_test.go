@@ -3,7 +3,6 @@ package build
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -157,26 +156,8 @@ func TestBuildRunner_SetupBuildConfig(t *testing.T) {
 	}
 	defer runner.Close()
 	
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	
-	// Test setupBuildConfig
-	err = runner.setupBuildConfig(ctx)
-	if err != nil {
-		t.Fatalf("setupBuildConfig failed: %v", err)
-	}
-	
-	// Verify config file was created
-	configPath := filepath.Join(tempDir, ".harlequin-build-config.yaml")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Errorf("Expected config file to be created at %s", configPath)
-	}
-	
-	// Verify config file contents
-	readConfig := config.ReadConfigFile(configPath)
-	if readConfig.StackSize != cfg.StackSize {
-		t.Errorf("Expected StackSize to be %d, got %d", cfg.StackSize, readConfig.StackSize)
-	}
+	// setupBuildConfig method was removed since we use direct Docker commands
+	// This test is no longer needed
 }
 
 // TestDockerManager_NewDockerManager tests the basic creation of DockerManager
@@ -213,14 +194,8 @@ func TestDockerManager_IsContainerRunning(t *testing.T) {
 	}
 	defer dm.Close()
 	
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	
-	// This test will pass regardless of Docker availability
-	// as it only tests the function doesn't crash
-	_, err = dm.IsContainerRunning(ctx)
-	// We don't assert on the error since Docker might not be available in CI
-	// The important thing is that the function doesn't panic
+	// IsContainerRunning method was removed since we use direct docker run commands
+	// This test is no longer needed
 	_ = err
 }
 
@@ -256,22 +231,7 @@ func TestBuildRunner_Integration(t *testing.T) {
 		return // Skip rest of test if Docker isn't available
 	}
 	
-	if status.ContainerRunning {
-		// Clean up any existing container
-		_ = runner.StopBuildEnvironment(ctx)
-	}
-	
-	// Test running a simple command (this will only work if Docker is available)
-	output, err := runner.RunCommandWithOutput(ctx, []string{"echo", "hello world"})
-	if err != nil {
-		t.Logf("Docker command failed (Docker may not be available): %v", err)
-		return
-	}
-	
-	if output == "" {
-		t.Error("Expected output from echo command")
-	}
-	
-	// Clean up
-	_ = runner.StopBuildEnvironment(ctx)
+	// Container lifecycle and command execution methods were removed
+	// since we now use direct docker run commands
+	_ = status // Avoid unused variable warning
 }

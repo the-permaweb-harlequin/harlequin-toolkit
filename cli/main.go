@@ -88,14 +88,11 @@ func handleStatusCommand(ctx context.Context) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Build Environment Status:\n")
-	fmt.Printf("  Container Running: %v\n", status.ContainerRunning)
+	fmt.Printf("Build Configuration:\n")
 	fmt.Printf("  Image: %s\n", status.ImageName)
 	fmt.Printf("  Container Name: %s\n", status.ContainerName)
 	fmt.Printf("  Workspace: %s\n", status.WorkspaceDir)
-	if status.ContainerWorkingDir != "" {
-		fmt.Printf("  Container Working Dir: %s\n", status.ContainerWorkingDir)
-	}
+	fmt.Printf("  Note: Using direct docker run commands (not persistent containers)\n")
 }
 
 func handleStartCommand(ctx context.Context) {
@@ -108,10 +105,8 @@ func handleStartCommand(ctx context.Context) {
 	}
 	defer runner.Close()
 
-	if err := runner.StartBuildEnvironment(ctx); err != nil {
-		fmt.Printf("Failed to start build environment: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("Start command is deprecated.")
+	fmt.Println("Use 'build' command directly - it uses direct docker run commands instead of persistent containers.")
 }
 
 func handleStopCommand(ctx context.Context) {
@@ -124,10 +119,8 @@ func handleStopCommand(ctx context.Context) {
 	}
 	defer runner.Close()
 
-	if err := runner.StopBuildEnvironment(ctx); err != nil {
-		fmt.Printf("Failed to stop build environment: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("Stop command is deprecated.")
+	fmt.Println("No persistent containers to stop - direct docker run commands are used instead.")
 }
 
 func handleExecCommand(ctx context.Context, args []string) {
@@ -145,10 +138,8 @@ func handleExecCommand(ctx context.Context, args []string) {
 	}
 	defer runner.Close()
 
-	if err := runner.RunCommand(ctx, args); err != nil {
-		fmt.Printf("Command failed: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Println("Exec command is deprecated.")
+	fmt.Println("Use 'build' command to build projects, or run docker commands directly.")
 }
 
 func loadConfig() *config.Config {

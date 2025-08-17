@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	harlequinBuild "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build"
 	harlequinConfig "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
@@ -42,43 +43,208 @@ Steps:
 	✅ added CleanAOSWorkspace functionality
 
 Usage:
-	builder := NewAOSBuilder(config, workspaceDir)
+	// Simple usage with named parameters (recommended)
+	config := &harlequinConfig.Config{...}
+	builder := NewAOSBuilder(AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: "./ao-build-config.yml",
+		Entrypoint:     "./main.lua",
+		OutputDir:      "./dist",
+		Callbacks:      CallbacksProgress, // or nil for default, CallbacksSilent for quiet
+	})
+	err := builder.Build(ctx) // Handles everything: prepare, bundle, inject, build, cleanup (workspace auto-managed)
 	
-	// Prepare workspace with AOS files
-	err := builder.PrepareWorkspace(ctx, workspaceDir)
+	// Convenience constructors (legacy support)
+	builder := NewAOSBuilderWithDefaultCallbacks(config, configPath, entrypoint, outputDir) // Default logging
+	builder := NewAOSBuilderSilent(config, configPath, entrypoint, outputDir)               // Silent operation
 	
-	// Build project with bundling and injection (recommended)
-	err = builder.BuildProjectWithInjection(ctx, projectPath, outputDir)
-	
-	// Or build basic project without bundling
-	err = builder.Build(ctx, projectPath)
-	
-	// Clean up
+	// Legacy manual steps (deprecated but still supported)
+	err := builder.PrepareWorkspace(ctx, workspaceDir)        // DEPRECATED
+	err = builder.BuildProjectWithInjection(ctx, projectPath, outputDir) // DEPRECATED
 	err = builder.CleanWorkspace(workspaceDir)
 */
-
 type AOSBuilder struct {
-	entrypoint   string
-	outputDir    string
-	workspaceDir string
-	config       *harlequinConfig.Config
-	runner       *harlequinBuild.BuildRunner
+	entrypoint     string
+	outputDir      string
+	workspaceDir   string
+	configFilePath string
+	config         *harlequinConfig.Config
+	runner         *harlequinBuild.BuildRunner
+	callbacks      *BuildCallbacks
 }
 
-func NewAOSBuilder(config *harlequinConfig.Config, workspaceDir string) *AOSBuilder {
-	runner, err := harlequinBuild.NewAOBuildRunner(config, workspaceDir)
+func NewAOSBuilder(params AOSBuilderParams) *AOSBuilder {
+	// Generate a temporary workspace directory
+	workspaceDir := filepath.Join(os.TempDir(), "harlequin-aos-build-"+generateRandomID())
+	
+	runner, err := harlequinBuild.NewAOBuildRunner(params.Config, workspaceDir)
 	if err != nil {
 		panic(err)
 	}
+	
+	callbacks := params.Callbacks
+	if callbacks == nil {
+		callbacks = DefaultLoggingCallbacks()
+	}
+	
 	return &AOSBuilder{
-		config:       config,
-		workspaceDir: workspaceDir,
-		runner:       runner,
+		entrypoint:     params.Entrypoint,
+		outputDir:      params.OutputDir,
+		configFilePath: params.ConfigFilePath,
+		config:         params.Config,
+		workspaceDir:   workspaceDir,
+		runner:         runner,
+		callbacks:      callbacks,
 	}
 }
 
-func (b *AOSBuilder) Build(ctx context.Context, projectPath string) error {
-	return b.runner.BuildProject(ctx, projectPath)
+// generateRandomID creates a random ID for temporary directories
+func generateRandomID() string {
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+// newAOSBuilderWithWorkspace creates an AOSBuilder with a custom workspace (for testing)
+func newAOSBuilderWithWorkspace(params AOSBuilderParams, workspaceDir string) *AOSBuilder {
+	runner, err := harlequinBuild.NewAOBuildRunner(params.Config, workspaceDir)
+	if err != nil {
+		panic(err)
+	}
+	
+	callbacks := params.Callbacks
+	if callbacks == nil {
+		callbacks = DefaultLoggingCallbacks()
+	}
+	
+	return &AOSBuilder{
+		entrypoint:     params.Entrypoint,
+		outputDir:      params.OutputDir,
+		configFilePath: params.ConfigFilePath,
+		config:         params.Config,
+		workspaceDir:   workspaceDir,
+		runner:         runner,
+		callbacks:      callbacks,
+	}
+}
+
+// NewAOSBuilderWithDefaultCallbacks creates an AOSBuilder with default logging callbacks (convenience function)
+func NewAOSBuilderWithDefaultCallbacks(config *harlequinConfig.Config, configFilePath, entrypoint, outputDir string) *AOSBuilder {
+	return NewAOSBuilder(AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: configFilePath,
+		Entrypoint:     entrypoint,
+		OutputDir:      outputDir,
+		Callbacks:      CallbacksDefault,
+	})
+}
+
+// NewAOSBuilderSilent creates an AOSBuilder with no-op callbacks for silent operation
+func NewAOSBuilderSilent(config *harlequinConfig.Config, configFilePath, entrypoint, outputDir string) *AOSBuilder {
+	return NewAOSBuilder(AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: configFilePath,
+		Entrypoint:     entrypoint,
+		OutputDir:      outputDir,
+		Callbacks:      CallbacksSilent,
+	})
+}
+
+// executeStep runs a build step and calls the appropriate callback
+func (b *AOSBuilder) executeStep(ctx context.Context, stepName string, callback func(ctx context.Context, info BuildStepInfo), stepFunc func() error) error {
+	startTime := time.Now()
+	
+	var err error
+	var success bool
+	
+	defer func() {
+		endTime := time.Now()
+		duration := endTime.Sub(startTime)
+		
+		info := BuildStepInfo{
+			StepName:  stepName,
+			StartTime: startTime,
+			EndTime:   endTime,
+			Duration:  duration,
+			Success:   success,
+			Error:     err,
+			Metadata:  make(map[string]interface{}),
+		}
+		
+		if callback != nil {
+			callback(ctx, info)
+		}
+	}()
+	
+	err = stepFunc()
+	success = err == nil
+	return err
+}
+
+// Build performs the complete AOS build process: prepares workspace, bundles Lua, injects code, and builds WASM
+func (b *AOSBuilder) Build(ctx context.Context) error {	
+	// Step 1: Prepare AOS workspace (clone AOS repo and copy files)
+	if err := b.executeStep(ctx, "CopyAOSFiles", b.callbacks.OnCopyAOSFiles, func() error {
+		return b.CopyAOSFiles(ctx, b.workspaceDir, b.configFilePath)
+	}); err != nil {
+		return fmt.Errorf("failed to prepare workspace: %w", err)
+	}
+	
+	// Step 2: Bundle the Lua project
+	var bundledCode string
+	if err := b.executeStep(ctx, "BundleLua", b.callbacks.OnBundleLua, func() error {
+		var err error
+		bundledCode, err = harlequinLuaUtils.Bundle(b.entrypoint)
+		return err
+	}); err != nil {
+		return fmt.Errorf("failed to bundle Lua project: %w", err)
+	}
+	
+	// Step 3: Write bundled code to workspace
+	processDir := filepath.Join(b.workspaceDir, "aos-process")
+	bundledFilePath := filepath.Join(processDir, "bundled.lua")
+	if err := os.WriteFile(bundledFilePath, []byte(bundledCode), 0644); err != nil {
+		return fmt.Errorf("failed to write bundled code: %w", err)
+	}
+	
+	// Step 4: Inject the bundled code into the AOS process
+	if err := b.executeStep(ctx, "InjectLua", b.callbacks.OnInjectLua, func() error {
+		options := NewDefaultBuildInjectionOptions(processDir, bundledFilePath, ".bundled")
+		return InjectBundledCode(options)
+	}); err != nil {
+		return fmt.Errorf("failed to inject bundled code: %w", err)
+	}
+	
+	// Step 5: Build the project using Docker
+	if err := b.executeStep(ctx, "WasmCompile", b.callbacks.OnWasmCompile, func() error {
+		return b.buildWithDocker(ctx, processDir)
+	}); err != nil {
+		return fmt.Errorf("failed to build WASM: %w", err)
+	}
+	
+	// Step 6: Copy outputs to the specified directory
+	if err := b.executeStep(ctx, "CopyOutputs", b.callbacks.OnCopyOutputs, func() error {
+		if err := b.CopyBuildOutputs(processDir, b.outputDir); err != nil {
+			return err
+		}
+		
+		// Also copy the bundled Lua file to output directory
+		outputBundledPath := filepath.Join(b.outputDir, "bundled.lua")
+		if err := copyFile(bundledFilePath, outputBundledPath); err != nil {
+			return fmt.Errorf("failed to copy bundled Lua file: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("failed to copy build outputs: %w", err)
+	}
+	
+	// Clean up workspace automatically
+	if err := b.executeStep(ctx, "Cleanup", b.callbacks.OnCleanup, func() error {
+		return b.CleanWorkspace(b.workspaceDir)
+	}); err != nil {
+		fmt.Printf("Warning: failed to clean workspace: %v\n", err)
+		// Don't fail the build for cleanup issues
+	}
+	
+	return nil
 }
 
 // PrepareWorkspace prepares the AOS workspace by copying the AOS process files
@@ -96,10 +262,7 @@ func (b *AOSBuilder) CleanWorkspace(workspaceDir string) error {
 	return CleanAOSWorkspace(workspaceDir)
 }
 
-// GetCopyOptions returns configured AOSCopyOptions for this builder
-func (b *AOSBuilder) GetCopyOptions(targetDir string) *AOSCopyOptions {
-	return NewAOSCopyOptions(b.config, targetDir)
-}
+// Note: GetCopyOptions removed - was unused. AOS copying is handled internally by Build()
 
 // AOSCopyOptions holds configuration for copying AOS process files
 type AOSCopyOptions struct {
@@ -251,35 +414,13 @@ func copyDirectory(src, dst string) error {
 	return nil
 }
 
-// PrepareAOSWorkspace prepares a workspace for AOS building by copying necessary files
+// PrepareAOSWorkspace prepares a workspace for AOS building by copying necessary files (DEPRECATED: integrated into Build())
 func PrepareAOSWorkspace(ctx context.Context, config *harlequinConfig.Config, workspaceDir string) error {
-	// Find config file
-	configPath := findConfigFile()
-	if configPath == "" {
-		return fmt.Errorf("could not find config file")
-	}
-
-	return CopyAOSProcessWithConfig(ctx, config, workspaceDir, configPath)
+	return fmt.Errorf("PrepareAOSWorkspace is deprecated and no longer supports automatic config file finding. Use CopyAOSProcessWithConfig with an explicit config file path, or use the AOSBuilder.Build() method instead")
 }
 
-// findConfigFile looks for config files in common locations
-func findConfigFile() string {
-	possiblePaths := []string{
-		"ao-build-config.yml",
-		"build_configs/ao-build-config.yml",
-		"config/ao-build-config.yml",
-		"harlequin.yaml",
-		"harlequin.yml",
-	}
-
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-
-	return ""
-}
+// Note: findConfigFile removed - config file path resolution is now the responsibility 
+// of the Config package, not the builder. The builder receives a resolved config file path.
 
 // CleanAOSWorkspace removes AOS-related files from the workspace
 func CleanAOSWorkspace(workspaceDir string) error {
@@ -288,12 +429,7 @@ func CleanAOSWorkspace(workspaceDir string) error {
 	return os.RemoveAll(aosProcessDir)
 }
 
-// BuildInjectionOptions configures the build injection process
-type BuildInjectionOptions struct {
-	ProcessFilePath string
-	BundledCodePath string
-	RequireName     string // The name to use in require() statement
-}
+// Note: BuildInjectionOptions moved to types.go to avoid duplication
 
 // NewDefaultBuildInjectionOptions creates default injection options
 func NewDefaultBuildInjectionOptions(processDir, bundledCodePath, requireName string) *BuildInjectionOptions {
@@ -360,68 +496,29 @@ func injectRequireStatement(content, requireName string) (string, error) {
 	return result, nil
 }
 
-// InjectBundledCodeIntoProcess is a convenience method for AOSBuilder
-func (b *AOSBuilder) InjectBundledCodeIntoProcess(ctx context.Context, bundledCodePath, requireName string) error {
-	processDir := filepath.Join(b.workspaceDir, "aos-process")
-	options := NewDefaultBuildInjectionOptions(processDir, bundledCodePath, requireName)
-	return InjectBundledCode(options)
-}
+// Note: InjectBundledCodeIntoProcess and InjectBundledCodeWithOptions removed
+// These were unused convenience methods. Injection is now handled internally by Build()
 
-// InjectBundledCodeWithOptions allows custom injection options
-func (b *AOSBuilder) InjectBundledCodeWithOptions(ctx context.Context, options *BuildInjectionOptions) error {
-	return InjectBundledCode(options)
-}
-
-// BuildProjectWithInjection builds a project with bundled code injection
+// BuildProjectWithInjection builds a project with bundled code injection (DEPRECATED: use Build() instead)
 func (b *AOSBuilder) BuildProjectWithInjection(ctx context.Context, projectPath, outputDir string) error {
-	fmt.Printf("Starting AOS build with injection for project: %s\n", projectPath)
+	fmt.Println("⚠️  BuildProjectWithInjection is deprecated. Use Build() method instead.")
 	
-	// Step 1: Bundle the Lua project using luautils
-	fmt.Println("Step 1: Bundling Lua project...")
-	entryPath := filepath.Join(projectPath, "main.lua")
-	bundledCode, err := harlequinLuaUtils.Bundle(entryPath)
-	if err != nil {
-		return fmt.Errorf("failed to bundle Lua project: %w", err)
-	}
+	// Create a temporary builder with the legacy parameters
+	oldEntrypoint := b.entrypoint
+	oldOutputDir := b.outputDir
 	
-	// Step 2: Write bundled code to workspace
-	fmt.Println("Step 2: Writing bundled code to workspace...")
-	processDir := filepath.Join(b.workspaceDir, "aos-process")
-	bundledFilePath := filepath.Join(processDir, "bundled.lua")
-	if err := os.WriteFile(bundledFilePath, []byte(bundledCode), 0644); err != nil {
-		return fmt.Errorf("failed to write bundled code: %w", err)
-	}
-	fmt.Printf("Bundled code written to: %s\n", bundledFilePath)
+	// Update builder with legacy parameters  
+	b.entrypoint = filepath.Join(projectPath, "main.lua")
+	b.outputDir = outputDir
 	
-	// Step 3: Inject the bundled code into the AOS process
-	fmt.Println("Step 3: Injecting bundled code into AOS process...")
-	options := NewDefaultBuildInjectionOptions(processDir, bundledFilePath, ".bundled")
-	if err := InjectBundledCode(options); err != nil {
-		return fmt.Errorf("failed to inject bundled code: %w", err)
-	}
+	// Call the new Build method
+	err := b.Build(ctx)
 	
-	// Step 4: Build the project using the container
-	fmt.Println("Step 4: Building project with container...")
-	if err := b.buildWithDocker(ctx, processDir); err != nil {
-		return fmt.Errorf("failed to build project: %w", err)
-	}
+	// Restore original parameters
+	b.entrypoint = oldEntrypoint
+	b.outputDir = oldOutputDir
 	
-	// Step 5: Copy outputs to the specified directory
-	fmt.Println("Step 5: Copying build outputs...")
-	if err := b.CopyBuildOutputs(processDir, outputDir); err != nil {
-		return fmt.Errorf("failed to copy build outputs: %w", err)
-	}
-	
-	// Also copy the bundled Lua file to output directory
-	outputBundledPath := filepath.Join(outputDir, "bundled.lua")
-	if err := copyFile(bundledFilePath, outputBundledPath); err != nil {
-		return fmt.Errorf("failed to copy bundled Lua file: %w", err)
-	}
-	fmt.Printf("Bundled Lua file copied to: %s\n", outputBundledPath)
-	
-	fmt.Printf("✅ AOS build with injection completed successfully!\n")
-	fmt.Printf("Output directory: %s\n", outputDir)
-	return nil
+	return err
 }
 
 // buildWithDocker runs the Docker container to build the WASM module
