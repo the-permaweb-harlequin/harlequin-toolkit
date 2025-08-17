@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
+	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
+	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/tui"
 )
 
 func main() {
@@ -23,7 +26,7 @@ func main() {
 
 	switch command {
 	case "build":
-		handleBuildCommand(ctx, os.Args[2:])
+		handleBuildCommandWithFlags(ctx, os.Args[2:])
 	case "status":
 		handleStatusCommand(ctx)
 	case "start":
@@ -38,6 +41,52 @@ func main() {
 		fmt.Printf("Unknown command: %s\n\n", command)
 		printUsage()
 		os.Exit(1)
+	}
+}
+
+func handleBuildCommandWithFlags(ctx context.Context, args []string) {
+	// Parse flags
+	var debugMode bool
+	var projectPath string
+	
+	// Process arguments
+	remainingArgs := []string{}
+	for i, arg := range args {
+		switch arg {
+		case "--debug", "-d":
+			debugMode = true
+		case "--help", "-h":
+			printBuildUsage()
+			return
+		default:
+			// If it starts with -, it's an unknown flag
+			if strings.HasPrefix(arg, "-") {
+				fmt.Printf("Unknown flag: %s\n\n", arg)
+				printBuildUsage()
+				os.Exit(1)
+			}
+			// Otherwise, it's a positional argument
+			remainingArgs = append(remainingArgs, arg)
+		}
+		_ = i // unused variable fix
+	}
+	
+	// Enable debug mode if flag was provided
+	if debugMode {
+		debug.SetEnabled(true)
+	}
+	
+	// Determine if TUI or legacy CLI mode
+	if len(remainingArgs) == 0 {
+		// No path argument - launch TUI
+		if err := tui.RunBuildTUI(ctx); err != nil {
+			fmt.Printf("Build failed: %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		// Legacy CLI mode with project path
+		projectPath = remainingArgs[0]
+		handleBuildCommand(ctx, []string{projectPath})
 	}
 }
 
@@ -160,24 +209,58 @@ func loadConfig() *config.Config {
 }
 
 func printUsage() {
-	fmt.Println("Harlequin AO Build Tool")
+	fmt.Println("🎭 Harlequin - Arweave Development Toolkit")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  harlequin-cli <command> [arguments]")
+	fmt.Println("  harlequin <command> [arguments]")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  build [path]    Build project at path (default: current directory)")
-	fmt.Println("  start           Start the build environment")
-	fmt.Println("  stop            Stop the build environment")
-	fmt.Println("  status          Show build environment status")
-	fmt.Println("  exec <cmd>      Execute command in build environment")
-	fmt.Println("  help            Show this help message")
+	fmt.Println("  build [flags] [path]    Build project (interactive TUI or legacy CLI)")
+	fmt.Println("  status                  Show build environment status")
+	fmt.Println("  help                    Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  harlequin-cli build")
-	fmt.Println("  harlequin-cli build ./my-project")
-	fmt.Println("  harlequin-cli start")
-	fmt.Println("  harlequin-cli exec ls -la")
-	fmt.Println("  harlequin-cli status")
-	fmt.Println("  harlequin-cli stop")
+	fmt.Println("  harlequin build                    # Interactive TUI")
+	fmt.Println("  harlequin build --debug            # Interactive TUI with debug logging")
+	fmt.Println("  harlequin build ./my-project       # Legacy CLI mode")
+	fmt.Println("  harlequin build --debug ./project  # Legacy CLI with debug logging")
+	fmt.Println("  harlequin status")
+	fmt.Println()
+	fmt.Println("The interactive TUI provides a guided experience for:")
+	fmt.Println("  • Selecting build type (AOS Flavour)")
+	fmt.Println("  • Choosing entrypoint files") 
+	fmt.Println("  • Configuring output directories")
+	fmt.Println("  • Editing .harlequin.yaml configuration")
+	fmt.Println()
+	fmt.Println("For detailed build options, use: harlequin build --help")
+}
+
+func printBuildUsage() {
+	fmt.Println("🎭 Harlequin Build Command")
+	fmt.Println()
+	fmt.Println("Usage:")
+	fmt.Println("  harlequin build [flags] [path]")
+	fmt.Println()
+	fmt.Println("Flags:")
+	fmt.Println("  -d, --debug     Enable debug logging for detailed output")
+	fmt.Println("  -h, --help      Show this help message")
+	fmt.Println()
+	fmt.Println("Arguments:")
+	fmt.Println("  [path]          Project path (optional, defaults to interactive TUI)")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  harlequin build                    # Launch interactive TUI")
+	fmt.Println("  harlequin build --debug            # TUI with debug logging")
+	fmt.Println("  harlequin build ./my-project       # Direct build (legacy mode)")
+	fmt.Println("  harlequin build -d ./my-project    # Direct build with debug")
+	fmt.Println()
+	fmt.Println("Debug Mode:")
+	fmt.Println("  When --debug is enabled, you'll see detailed logging including:")
+	fmt.Println("  • Git repository cloning progress")
+	fmt.Println("  • Docker build container output")
+	fmt.Println("  • File copying and injection details")
+	fmt.Println("  • Cleanup operations")
+	fmt.Println()
+	fmt.Println("Environment Variable Alternative:")
+	fmt.Println("  HARLEQUIN_DEBUG=true harlequin build")
 }

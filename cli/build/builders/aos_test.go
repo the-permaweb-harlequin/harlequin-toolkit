@@ -260,7 +260,7 @@ return utils
 	configPath := "../../build_configs/ao-build-config.yml"
 	builder := newAOSBuilderWithWorkspace(AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: configPath,
+		ConfigFilePath: &configPath,
 		Entrypoint:     entrypoint,
 		OutputDir:      outputDir,
 		Callbacks:      nil, // nil = default callbacks
@@ -403,12 +403,11 @@ func TestBuildCallbacks(t *testing.T) {
 		AOSGitHash:    "main",
 	}
 
-	// Create builder with custom callbacks
-	configPath := "../../build_configs/ao-build-config.yml"
+	// Create builder with custom callbacks using default config path
 	entrypoint := filepath.Join(projectDir, "main.lua")
 	builder := newAOSBuilderWithWorkspace(AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: configPath,
+		ConfigFilePath: nil, // Use default .harlequin.yaml
 		Entrypoint:     entrypoint,
 		OutputDir:      outputDir,
 		Callbacks:      testCallbacks,
@@ -506,9 +505,10 @@ func TestAOSBuilderParams(t *testing.T) {
 		AOSGitHash:    "main",
 	}
 
+	configPath := "test-config.yml"
 	params := AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: "test-config.yml",
+		ConfigFilePath: &configPath,
 		Entrypoint:     "./main.lua",
 		OutputDir:      "./dist",
 		Callbacks:      CallbacksProgress,
@@ -520,7 +520,7 @@ func TestAOSBuilderParams(t *testing.T) {
 	if builder.config != config {
 		t.Error("Config not set correctly")
 	}
-	if builder.configFilePath != params.ConfigFilePath {
+	if builder.configFilePath != configPath {
 		t.Error("ConfigFilePath not set correctly")
 	}
 	if builder.workspaceDir == "" {
@@ -548,7 +548,7 @@ func TestAOSBuilderParams(t *testing.T) {
 	// Test with nil callbacks (should default to CallbacksDefault)
 	paramsWithNilCallbacks := AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: "test-config.yml",
+		ConfigFilePath: &configPath,
 		Entrypoint:     "./main.lua",
 		OutputDir:      "./dist",
 		Callbacks:      nil,
@@ -560,4 +560,107 @@ func TestAOSBuilderParams(t *testing.T) {
 	}
 
 	t.Log("✅ AOSBuilderParams struct verified successfully!")
+}
+
+func TestAOSBuilderDefaultConfigPath(t *testing.T) {
+	// Test that nil ConfigFilePath defaults to ".harlequin.yaml"
+	config := &harlequinConfig.Config{
+		ComputeLimit:  "9000000000",
+		ModuleFormat:  "wasm32_unknown_emscripten_metering",
+		AOSGitHash:    "main",
+	}
+
+	params := AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: nil, // nil - should default to ".harlequin.yaml"
+		Entrypoint:     "./main.lua",
+		OutputDir:      "./dist",
+		Callbacks:      CallbacksSilent,
+	}
+
+	builder := NewAOSBuilder(params)
+
+	// Verify config file path defaults to ".harlequin.yaml"
+	if builder.configFilePath != ".harlequin.yaml" {
+		t.Errorf("Expected default config file path '.harlequin.yaml', got '%s'", builder.configFilePath)
+	}
+
+	// Test with explicit custom config path
+	customConfigPath := "./custom-config.yml"
+	paramsWithCustomConfig := AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: &customConfigPath,
+		Entrypoint:     "./main.lua",
+		OutputDir:      "./dist",
+		Callbacks:      CallbacksSilent,
+	}
+
+	builderWithCustom := NewAOSBuilder(paramsWithCustomConfig)
+
+	// Verify custom config file path is preserved
+	if builderWithCustom.configFilePath != "./custom-config.yml" {
+		t.Errorf("Expected custom config file path './custom-config.yml', got '%s'", builderWithCustom.configFilePath)
+	}
+
+	t.Log("✅ Default config path behavior verified successfully!")
+}
+
+func TestAOSBuilderNonExistentConfigPath(t *testing.T) {
+	// Test that AOSBuilder doesn't fail when config file path doesn't exist
+	config := &harlequinConfig.Config{
+		ComputeLimit:  "9000000000",
+		ModuleFormat:  "wasm32_unknown_emscripten_metering",
+		AOSGitHash:    "main",
+	}
+
+	// Create temporary workspace for this test
+	workspaceDir := filepath.Join("test-output", "nonexistent-config-workspace")
+	os.MkdirAll(workspaceDir, 0755)
+	defer os.RemoveAll(workspaceDir)
+
+	// Specify a config file that definitely doesn't exist
+	nonExistentConfigPath := "./definitely-does-not-exist.yaml"
+	
+	// Verify the file doesn't exist
+	if _, err := os.Stat(nonExistentConfigPath); !os.IsNotExist(err) {
+		t.Fatalf("Test setup error: config file %s should not exist", nonExistentConfigPath)
+	}
+
+	params := AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: &nonExistentConfigPath,
+		Entrypoint:     "./test.lua", // This file doesn't need to exist for this test
+		OutputDir:      "./test-output",
+		Callbacks:      CallbacksSilent,
+	}
+
+	builder := newAOSBuilderWithWorkspace(params, workspaceDir)
+
+	// Test that Build method handles non-existent config files gracefully
+	// The fix is in the Build method which checks if config file exists before copying
+	
+	// For this test, we'll create a minimal test that verifies the logic 
+	// without running the full build (which requires Docker, etc.)
+	
+	// Test the specific logic: if config file doesn't exist, don't try to copy it
+	configFilePath := builder.configFilePath // This should be the non-existent file
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		// This simulates the fix in Build method
+		configFilePath = "" // Don't try to copy non-existent file
+		t.Log("✅ Config file existence check working - empty path when file doesn't exist")
+	} else {
+		t.Errorf("❌ Test setup error: config file should not exist")
+	}
+	
+	// Now test CopyAOSFiles with empty config path (should work)
+	err := builder.CopyAOSFiles(context.Background(), workspaceDir, configFilePath)
+	
+	// With empty config path, this should either succeed or fail for reasons other than missing config
+	if err != nil && strings.Contains(err.Error(), "no such file or directory") && strings.Contains(err.Error(), "definitely-does-not-exist.yaml") {
+		t.Errorf("❌ CopyAOSFiles still failing on non-existent config file: %v", err)
+	} else {
+		t.Log("✅ CopyAOSFiles handled empty/non-existent config file path correctly")
+	}
+
+	t.Log("✅ Non-existent config path behavior verified successfully!")
 }

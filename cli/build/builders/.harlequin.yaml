@@ -1,0 +1,7 @@
+stack_size: 3145728
+initial_memory: 4194304
+maximum_memory: 1073741824
+target: 32
+compute_limit: "9000000000"
+module_format: "wasm32_unknown_emscripten_metering"
+aos_git_hash: "main"

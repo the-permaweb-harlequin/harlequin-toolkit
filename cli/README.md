@@ -1,8 +1,52 @@
-# CLI
+# 🎭 Harlequin CLI
 
-The harlequin CLI uses Bubble Tea.
+A beautiful, interactive terminal interface for building Arweave projects using Charm's Bubble Tea framework.
 
-Plan for this cli
+## Quick Start
+
+### Interactive TUI (Recommended)
+```bash
+# Build the CLI
+go build -o harlequin .
+
+# Launch interactive build experience
+./harlequin build
+```
+
+### Legacy CLI Mode
+```bash
+# Direct build (for scripts/automation)
+./harlequin build ./my-project
+```
+
+## Features
+
+- **🎨 Beautiful TUI**: Clean, intuitive interface with consistent styling
+- **📁 Smart File Discovery**: Automatically finds Lua files in your project
+- **⚙️ Configuration Management**: Load and edit `.harlequin.yaml` configurations
+- **🚀 Real-time Progress**: Live build progress with visual feedback
+- **🔧 Error Handling**: Clear error messages and recovery guidance
+
+## Architecture
+
+### Core Components
+- **TUI Framework**: Charm Bubble Tea + Huh forms
+- **Build System**: Integrated AOSBuilder with Docker containerization
+- **Config Management**: YAML-based configuration with smart defaults
+
+### Build Flow
+1. **Build Type Selection**: Choose AOS Flavour using structured application layout (more types planned)
+2. **Configuration**: Select standard build options
+3. **Entrypoint**: Pick your main Lua file
+4. **Output**: Configure build output directory
+5. **Config Review**: Edit `.harlequin.yaml` if needed
+6. **Execution**: Watch real-time build progress
+
+See [TUI_DEMO.md](./TUI_DEMO.md) for detailed walkthrough.
+
+## Roadmap
+
+Plan for this CLI
 
 ## Stage 1: flavored aos builds
 

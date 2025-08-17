@@ -12,6 +12,7 @@ import (
 
 	harlequinBuild "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build"
 	harlequinConfig "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
+	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
 	harlequinLuaUtils "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/lua_utils"
 )
 
@@ -46,13 +47,22 @@ Usage:
 	// Simple usage with named parameters (recommended)
 	config := &harlequinConfig.Config{...}
 	builder := NewAOSBuilder(AOSBuilderParams{
-		Config:         config,
-		ConfigFilePath: "./ao-build-config.yml",
-		Entrypoint:     "./main.lua",
-		OutputDir:      "./dist",
-		Callbacks:      CallbacksProgress, // or nil for default, CallbacksSilent for quiet
+		Config:     config,
+		Entrypoint: "./main.lua",
+		OutputDir:  "./dist",
+		Callbacks:  CallbacksProgress, // or nil for default, CallbacksSilent for quiet
+		// ConfigFilePath: nil // defaults to ".harlequin.yaml", or specify custom path
 	})
 	err := builder.Build(ctx) // Handles everything: prepare, bundle, inject, build, cleanup (workspace auto-managed)
+	
+	// With custom config file
+	customConfig := "./custom-ao-build-config.yml"
+	builder := NewAOSBuilder(AOSBuilderParams{
+		Config:         config,
+		ConfigFilePath: &customConfig,
+		Entrypoint:     "./main.lua",
+		OutputDir:      "./dist",
+	})
 	
 	// Convenience constructors (legacy support)
 	builder := NewAOSBuilderWithDefaultCallbacks(config, configPath, entrypoint, outputDir) // Default logging
@@ -87,10 +97,16 @@ func NewAOSBuilder(params AOSBuilderParams) *AOSBuilder {
 		callbacks = DefaultLoggingCallbacks()
 	}
 	
+	// Use .harlequin.yaml as default config file path if not specified
+	configFilePath := ".harlequin.yaml"
+	if params.ConfigFilePath != nil {
+		configFilePath = *params.ConfigFilePath
+	}
+	
 	return &AOSBuilder{
 		entrypoint:     params.Entrypoint,
 		outputDir:      params.OutputDir,
-		configFilePath: params.ConfigFilePath,
+		configFilePath: configFilePath,
 		config:         params.Config,
 		workspaceDir:   workspaceDir,
 		runner:         runner,
@@ -115,10 +131,16 @@ func newAOSBuilderWithWorkspace(params AOSBuilderParams, workspaceDir string) *A
 		callbacks = DefaultLoggingCallbacks()
 	}
 	
+	// Use .harlequin.yaml as default config file path if not specified
+	configFilePath := ".harlequin.yaml"
+	if params.ConfigFilePath != nil {
+		configFilePath = *params.ConfigFilePath
+	}
+	
 	return &AOSBuilder{
 		entrypoint:     params.Entrypoint,
 		outputDir:      params.OutputDir,
-		configFilePath: params.ConfigFilePath,
+		configFilePath: configFilePath,
 		config:         params.Config,
 		workspaceDir:   workspaceDir,
 		runner:         runner,
@@ -130,7 +152,7 @@ func newAOSBuilderWithWorkspace(params AOSBuilderParams, workspaceDir string) *A
 func NewAOSBuilderWithDefaultCallbacks(config *harlequinConfig.Config, configFilePath, entrypoint, outputDir string) *AOSBuilder {
 	return NewAOSBuilder(AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: configFilePath,
+		ConfigFilePath: &configFilePath,
 		Entrypoint:     entrypoint,
 		OutputDir:      outputDir,
 		Callbacks:      CallbacksDefault,
@@ -141,7 +163,7 @@ func NewAOSBuilderWithDefaultCallbacks(config *harlequinConfig.Config, configFil
 func NewAOSBuilderSilent(config *harlequinConfig.Config, configFilePath, entrypoint, outputDir string) *AOSBuilder {
 	return NewAOSBuilder(AOSBuilderParams{
 		Config:         config,
-		ConfigFilePath: configFilePath,
+		ConfigFilePath: &configFilePath,
 		Entrypoint:     entrypoint,
 		OutputDir:      outputDir,
 		Callbacks:      CallbacksSilent,
@@ -183,7 +205,13 @@ func (b *AOSBuilder) executeStep(ctx context.Context, stepName string, callback 
 func (b *AOSBuilder) Build(ctx context.Context) error {	
 	// Step 1: Prepare AOS workspace (clone AOS repo and copy files)
 	if err := b.executeStep(ctx, "CopyAOSFiles", b.callbacks.OnCopyAOSFiles, func() error {
-		return b.CopyAOSFiles(ctx, b.workspaceDir, b.configFilePath)
+		// Check if config file actually exists before trying to copy it
+		configFilePath := b.configFilePath
+		if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+			// Config file doesn't exist, don't try to copy it
+			configFilePath = ""
+		}
+		return b.CopyAOSFiles(ctx, b.workspaceDir, configFilePath)
 	}); err != nil {
 		return fmt.Errorf("failed to prepare workspace: %w", err)
 	}
@@ -240,7 +268,7 @@ func (b *AOSBuilder) Build(ctx context.Context) error {
 	if err := b.executeStep(ctx, "Cleanup", b.callbacks.OnCleanup, func() error {
 		return b.CleanWorkspace(b.workspaceDir)
 	}); err != nil {
-		fmt.Printf("Warning: failed to clean workspace: %v\n", err)
+		debug.Printf("Warning: failed to clean workspace: %v\n", err)
 		// Don't fail the build for cleanup issues
 	}
 	
@@ -292,16 +320,16 @@ func NewAOSCopyOptions(config *harlequinConfig.Config, targetDir string) *AOSCop
 
 // CopyAOSProcess clones the AOS repository and copies the process directory
 func CopyAOSProcess(ctx context.Context, options *AOSCopyOptions) error {
-	fmt.Printf("Starting AOS process copy...\n")
+	debug.Println("Starting AOS process copy...")
 
 	// Step 1: Remove existing aos-process directory
-	fmt.Printf("Removing existing directory: %s\n", options.ProcessTargetDir)
+	debug.Printf("Removing existing directory: %s\n", options.ProcessTargetDir)
 	if err := os.RemoveAll(options.ProcessTargetDir); err != nil {
 		return fmt.Errorf("failed to remove existing directory: %w", err)
 	}
 
 	// Step 2: Clone the repository into a temporary directory
-	fmt.Printf("Cloning repository: %s\n", options.RepoURL)
+	debug.Printf("Cloning repository: %s\n", options.RepoURL)
 	cloneCmd := exec.CommandContext(ctx, "git", "clone", options.RepoURL, options.TempRepoDir)
 	if err := cloneCmd.Run(); err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
@@ -309,12 +337,12 @@ func CopyAOSProcess(ctx context.Context, options *AOSCopyOptions) error {
 
 	// Cleanup temp repo on exit
 	defer func() {
-		fmt.Printf("Removing temporary directory: %s\n", options.TempRepoDir)
+		debug.Printf("Removing temporary directory: %s\n", options.TempRepoDir)
 		_ = os.RemoveAll(options.TempRepoDir)
 	}()
 
 	// Step 3: Checkout the specific commit hash
-	fmt.Printf("Checking out commit: %s\n", options.CommitHash)
+	debug.Printf("Checking out commit: %s\n", options.CommitHash)
 	checkoutCmd := exec.CommandContext(ctx, "git", "checkout", options.CommitHash)
 	checkoutCmd.Dir = options.TempRepoDir
 	if err := checkoutCmd.Run(); err != nil {
@@ -323,7 +351,7 @@ func CopyAOSProcess(ctx context.Context, options *AOSCopyOptions) error {
 
 	// Step 4: Move the process directory to the target location
 	processDir := filepath.Join(options.TempRepoDir, "process")
-	fmt.Printf("Moving %s to %s\n", processDir, options.ProcessTargetDir)
+	debug.Printf("Moving %s to %s\n", processDir, options.ProcessTargetDir)
 	
 	// Ensure target directory exists
 	if err := os.MkdirAll(filepath.Dir(options.ProcessTargetDir), 0755); err != nil {
@@ -336,13 +364,13 @@ func CopyAOSProcess(ctx context.Context, options *AOSCopyOptions) error {
 
 	// Step 5: Copy the build config file to the target directory (if specified)
 	if options.ConfigSourceFile != "" {
-		fmt.Printf("Copying %s to %s\n", options.ConfigSourceFile, options.ConfigDestFile)
+		debug.Printf("Copying %s to %s\n", options.ConfigSourceFile, options.ConfigDestFile)
 		if err := copyFile(options.ConfigSourceFile, options.ConfigDestFile); err != nil {
 			return fmt.Errorf("failed to copy config file: %w", err)
 		}
 	}
 
-	fmt.Println("Successfully copied AOS process and config.")
+	debug.Println("Successfully copied AOS process and config.")
 	return nil
 }
 
@@ -425,7 +453,7 @@ func PrepareAOSWorkspace(ctx context.Context, config *harlequinConfig.Config, wo
 // CleanAOSWorkspace removes AOS-related files from the workspace
 func CleanAOSWorkspace(workspaceDir string) error {
 	aosProcessDir := filepath.Join(workspaceDir, "aos-process")
-	fmt.Printf("Cleaning AOS workspace: %s\n", aosProcessDir)
+	debug.Printf("Cleaning AOS workspace: %s\n", aosProcessDir)
 	return os.RemoveAll(aosProcessDir)
 }
 
@@ -442,7 +470,7 @@ func NewDefaultBuildInjectionOptions(processDir, bundledCodePath, requireName st
 
 // InjectBundledCode injects bundled Lua code into the AOS process file
 func InjectBundledCode(options *BuildInjectionOptions) error {
-	fmt.Printf("Injecting bundled code into: %s\n", options.ProcessFilePath)
+	debug.Printf("Injecting bundled code into: %s\n", options.ProcessFilePath)
 
 	// Read the process.lua file
 	content, err := os.ReadFile(options.ProcessFilePath)
@@ -463,7 +491,7 @@ func InjectBundledCode(options *BuildInjectionOptions) error {
 		return fmt.Errorf("failed to write updated process file: %w", err)
 	}
 
-	fmt.Printf("Successfully injected bundled code require: require('%s')\n", options.RequireName)
+	debug.Printf("Successfully injected bundled code require: require('%s')\n", options.RequireName)
 	return nil
 }
 
@@ -472,7 +500,7 @@ func injectRequireStatement(content, requireName string) (string, error) {
 	// Check if the require statement is already present
 	existingRequire := fmt.Sprintf("require('%s')", requireName)
 	if strings.Contains(content, existingRequire) {
-		fmt.Printf("The require('%s') statement is already present\n", requireName)
+		debug.Printf("The require('%s') statement is already present\n", requireName)
 		return content, nil
 	}
 
@@ -492,7 +520,7 @@ func injectRequireStatement(content, requireName string) (string, error) {
 	injectionCode := fmt.Sprintf("\nrequire('%s');", requireName)
 	result := content[:position] + injectionCode + content[position:]
 
-	fmt.Printf("Injected require('%s') after the last Handlers.append\n", requireName)
+	debug.Printf("Injected require('%s') after the last Handlers.append\n", requireName)
 	return result, nil
 }
 
@@ -501,7 +529,7 @@ func injectRequireStatement(content, requireName string) (string, error) {
 
 // BuildProjectWithInjection builds a project with bundled code injection (DEPRECATED: use Build() instead)
 func (b *AOSBuilder) BuildProjectWithInjection(ctx context.Context, projectPath, outputDir string) error {
-	fmt.Println("⚠️  BuildProjectWithInjection is deprecated. Use Build() method instead.")
+	debug.Println("⚠️  BuildProjectWithInjection is deprecated. Use Build() method instead.")
 	
 	// Create a temporary builder with the legacy parameters
 	oldEntrypoint := b.entrypoint
@@ -523,7 +551,7 @@ func (b *AOSBuilder) BuildProjectWithInjection(ctx context.Context, projectPath,
 
 // buildWithDocker runs the Docker container to build the WASM module
 func (b *AOSBuilder) buildWithDocker(ctx context.Context, processDir string) error {
-	fmt.Printf("Building WASM module in directory: %s\n", processDir)
+	debug.Printf("Building WASM module in directory: %s\n", processDir)
 	
 	// Get absolute path for Docker volume mount
 	absProcessDir, err := filepath.Abs(processDir)
@@ -534,7 +562,7 @@ func (b *AOSBuilder) buildWithDocker(ctx context.Context, processDir string) err
 	// Get the Docker image name from the runner or use default
 	imageName := b.runner.GetImageName()
 	
-	fmt.Printf("Using absolute path for Docker mount: %s\n", absProcessDir)
+	debug.Printf("Using absolute path for Docker mount: %s\n", absProcessDir)
 	
 	// Docker command: docker run --platform linux/amd64 -v ${pwd}:/src p3rmaw3b/ao:${VERSION} ao-build-module
 	cmd := exec.CommandContext(ctx, 
@@ -550,11 +578,11 @@ func (b *AOSBuilder) buildWithDocker(ctx context.Context, processDir string) err
 	output, err := cmd.CombinedOutput()
 	
 	if err != nil {
-		fmt.Printf("Docker build failed with output:\n%s\n", string(output))
+		debug.Printf("Docker build failed with output:\n%s\n", string(output))
 		return fmt.Errorf("docker build failed: %w", err)
 	}
 	
-	fmt.Printf("Docker build completed successfully:\n%s\n", string(output))
+	debug.Printf("Docker build completed successfully:\n%s\n", string(output))
 	
 	// Verify that process.wasm was created
 	wasmPath := filepath.Join(processDir, "process.wasm")
@@ -562,7 +590,7 @@ func (b *AOSBuilder) buildWithDocker(ctx context.Context, processDir string) err
 		return fmt.Errorf("process.wasm was not created by the build process")
 	}
 	
-	fmt.Printf("✅ WASM module successfully built: %s\n", wasmPath)
+	debug.Printf("✅ WASM module successfully built: %s\n", wasmPath)
 	return nil
 }
 
@@ -580,7 +608,7 @@ func (b *AOSBuilder) CopyBuildOutputs(processDir, outputDir string) error {
 		if err := copyFile(wasmFile, outputWasm); err != nil {
 			return fmt.Errorf("failed to copy process.wasm: %w", err)
 		}
-		fmt.Printf("Copied process.wasm to %s\n", outputWasm)
+		debug.Printf("Copied process.wasm to %s\n", outputWasm)
 	}
 
 	return nil

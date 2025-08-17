@@ -13,3 +13,5 @@ node_modules
 
 # CLI test outputs
 cli/build/builders/test-output/
+cli/examples/dist
+cli/harlequin

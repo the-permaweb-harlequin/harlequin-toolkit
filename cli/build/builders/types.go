@@ -27,7 +27,7 @@ type BuildInjectionOptions struct {
 // AOSBuilderParams contains parameters for creating an AOSBuilder
 type AOSBuilderParams struct {
 	Config         *harlequinConfig.Config
-	ConfigFilePath string
+	ConfigFilePath *string // Optional: defaults to ".harlequin.yaml" if nil
 	Entrypoint     string
 	OutputDir      string
 	Callbacks      *BuildCallbacks
