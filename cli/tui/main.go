@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/harmonica"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build/builders"
@@ -43,8 +44,10 @@ const (
 
 // BuildStep represents a single build step with status
 type BuildStep struct {
-	Name   string
-	Status StepStatus
+	Name       string
+	Status     StepStatus
+	Spinner    harmonica.Spring
+	SpinPhase  float64
 }
 
 // Model represents the TUI application state
@@ -61,6 +64,7 @@ type Model struct {
 	configFieldIndex int       // Currently selected config field
 	isEditingText    bool       // Whether we're currently editing text in an input
 	cursorVisible    bool      // Animation for blinking cursor
+	program        *tea.Program // Reference to the running program for sending messages
 }
 
 // Messages for Bubble Tea
@@ -68,11 +72,19 @@ type BuildStepStartMsg struct{ StepName string }
 type BuildStepCompleteMsg struct{ StepName string; Success bool }
 type BuildOutputMsg struct{ Output string }
 type tickMsg time.Time
+type animateMsg time.Time
 
 // Command to send tick messages for animations
 func tick() tea.Cmd {
 	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
 		return tickMsg(t)
+	})
+}
+
+// Command to send animation messages for spinner updates
+func animate() tea.Cmd {
+	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg { // ~60fps
+		return animateMsg(t)
 	})
 }
 
@@ -104,24 +116,27 @@ type BuildFlow struct {
 
 // RunBuildTUI starts the interactive build TUI
 func RunBuildTUI(ctx context.Context) error {
-	// Initialize the model
+	// Initialize the model with spinner animations
+	buildSteps := []BuildStep{
+		{Name: "Copy AOS Files", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+		{Name: "Bundle Lua", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+		{Name: "Inject Code", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+		{Name: "Build WASM", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+		{Name: "Copy Outputs", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+		{Name: "Cleanup", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
+	}
+
 	m := &Model{
 		state: ViewBuildTypeSelection,
 		flow:  &BuildFlow{},
-		buildSteps: []BuildStep{
-			{Name: "Copy AOS Files", Status: StepPending},
-			{Name: "Bundle Lua", Status: StepPending},
-			{Name: "Inject Code", Status: StepPending},
-			{Name: "Build WASM", Status: StepPending},
-			{Name: "Copy Outputs", Status: StepPending},
-			{Name: "Cleanup", Status: StepPending},
-		},
+		buildSteps: buildSteps,
 		outputLines: []string{},
 		availableOptions: []string{"AOS Flavour"},
 	}
 
 	// Start the Bubble Tea program
 	p := tea.NewProgram(m, tea.WithAltScreen())
+	m.program = p // Store reference for sending messages from callbacks
 	
 	// Run the program
 	if _, err := p.Run(); err != nil {
@@ -136,7 +151,7 @@ func (m *Model) Init() tea.Cmd {
 	// Initialize cursor visibility
 	m.cursorVisible = true
 	
-	return tick()
+	return tea.Batch(tick(), animate())
 }
 
 // Update implements the Bubble Tea model interface
@@ -151,6 +166,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Toggle cursor visibility for blinking effect
 		m.cursorVisible = !m.cursorVisible
 		return m, tick()
+		
+	case animateMsg:
+		// Update spinner animations for running build steps
+		for i := range m.buildSteps {
+			if m.buildSteps[i].Status == StepRunning {
+				m.buildSteps[i].SpinPhase += 0.1
+				if m.buildSteps[i].SpinPhase > 2*3.14159 {
+					m.buildSteps[i].SpinPhase = 0
+				}
+			}
+		}
+		return m, animate()
 		
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -252,10 +279,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		
 	case BuildStepStartMsg:
-		// Update step status to running
+		// Update step status to running and start spinner animation
 		for i := range m.buildSteps {
 			if m.buildSteps[i].Name == msg.StepName {
 				m.buildSteps[i].Status = StepRunning
+				m.buildSteps[i].SpinPhase = 0 // Reset spin phase
 				break
 			}
 		}
@@ -340,8 +368,33 @@ func (m *Model) handleSelection() (tea.Model, tea.Cmd) {
 	case ViewConfiguration:
 		m.flow.SubType = "standard"
 		m.state = ViewEntrypointSelection
-		// TODO: Load actual Lua files
-		m.availableOptions = []string{"main.lua", "src/init.lua"}
+		
+		// Scan filesystem for actual Lua files
+		cwd, err := os.Getwd()
+		if err != nil {
+			debug.Error("Failed to get current working directory: %v\n", err)
+			// Fallback to examples if filesystem scan fails
+			m.availableOptions = []string{"main.lua", "src/init.lua"}
+		} else {
+			luaFiles, err := findLuaFiles(cwd)
+			if err != nil || len(luaFiles) == 0 {
+				debug.Error("Failed to find Lua files or no Lua files found: %v\n", err)
+				// Fallback to examples if no Lua files found
+				m.availableOptions = []string{"main.lua", "src/init.lua", "index.lua"}
+			} else {
+				// Convert absolute paths to relative paths for display
+				m.availableOptions = make([]string, 0, len(luaFiles))
+				for _, file := range luaFiles {
+					relPath, err := filepath.Rel(cwd, file)
+					if err != nil {
+						// If relative path fails, use the absolute path
+						m.availableOptions = append(m.availableOptions, file)
+					} else {
+						m.availableOptions = append(m.availableOptions, relPath)
+					}
+				}
+			}
+		}
 		m.selectedIndex = 0
 		
 	case ViewEntrypointSelection:
@@ -517,7 +570,10 @@ func (m *Model) createBuildStepsPanel() string {
 		case StepPending:
 			icon = "○"  // Circle for pending
 		case StepRunning:
-			icon = "◐"  // Half circle for running (spinner effect)
+			// Animated spinner using rotation
+			spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+			spinnerIndex := int(step.SpinPhase*float64(len(spinnerChars))/6.28) % len(spinnerChars)
+			icon = spinnerChars[spinnerIndex]
 		case StepSuccess:
 			icon = "✓"  // Check for success
 		case StepFailed:
@@ -950,13 +1006,94 @@ func (m *Model) startBuild() tea.Cmd {
 			return BuildOutputMsg{Output: "❌ Error: No config loaded"}
 		}
 		
-		// Create AOSBuilder with the selected parameters
+		// Create custom callbacks that send messages to TUI
+		callbacks := &builders.BuildCallbacks{
+			OnCopyAOSFiles: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ AOS workspace prepared"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to prepare AOS workspace"})
+					}
+				}
+			},
+			OnBundleLua: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ Lua project bundled"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to bundle Lua project"})
+					}
+				}
+			},
+			OnInjectLua: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ Code injected into AOS process"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to inject code"})
+					}
+				}
+			},
+			OnWasmCompile: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ WASM compilation completed"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to compile WASM"})
+					}
+				}
+			},
+			OnCopyOutputs: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ Build outputs copied"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to copy outputs"})
+					}
+				}
+			},
+			OnCleanup: func(ctx context.Context, info builders.BuildStepInfo) {
+				if m.program != nil {
+					if info.Success {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: true})
+						m.program.Send(BuildOutputMsg{Output: "✅ Workspace cleaned up"})
+					} else {
+						m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: false})
+						m.program.Send(BuildOutputMsg{Output: "❌ Failed to clean workspace"})
+					}
+				}
+			},
+		}
+		
+		// Send start messages for each step as they begin
+		go func() {
+			stepNames := []string{"Copy AOS Files", "Bundle Lua", "Inject Code", "Build WASM", "Copy Outputs", "Cleanup"}
+			for _, stepName := range stepNames {
+				if m.program != nil {
+					m.program.Send(BuildStepStartMsg{StepName: stepName})
+				}
+				time.Sleep(time.Millisecond * 100) // Small delay to show progression
+			}
+		}()
+		
+		// Create AOSBuilder with the custom callbacks
 		builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
 			Config:         m.flow.Config,
 			ConfigFilePath: nil, // Use default .harlequin.yaml
 			Entrypoint:     m.flow.Entrypoint,
 			OutputDir:      m.flow.OutputDir,
-			Callbacks:      builders.CallbacksDefault, // Use default callbacks for now
+			Callbacks:      callbacks,
 		})
 
 		// Run the build
