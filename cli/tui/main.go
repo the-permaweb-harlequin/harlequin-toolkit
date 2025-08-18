@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/harmonica"
-	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build/builders"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
+	components "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/tui/components"
 )
 
 // ViewState represents the current view in the TUI
@@ -23,88 +22,47 @@ type ViewState int
 
 const (
 	ViewBuildTypeSelection ViewState = iota
-	ViewConfiguration
 	ViewEntrypointSelection
 	ViewOutputDirectory
 	ViewConfigReview
 	ViewConfigEditing
 	ViewBuildRunning
-	ViewBuildComplete
+	ViewBuildSuccess
+	ViewBuildError
 )
 
-// StepStatus represents the status of a build step
-type StepStatus int
-
-const (
-	StepPending StepStatus = iota
-	StepRunning
-	StepSuccess
-	StepFailed
-)
-
-// BuildStep represents a single build step with status
-type BuildStep struct {
-	Name       string
-	Status     StepStatus
-	Spinner    harmonica.Spring
-	SpinPhase  float64
-}
-
-// Model represents the TUI application state
+// Model represents the modernized TUI application state
 type Model struct {
-	state          ViewState
-	flow           *BuildFlow
-	buildSteps     []BuildStep
-	outputLines    []string
-	terminalWidth  int
-	terminalHeight int
-	selectedIndex  int
-	availableOptions []string
-	configEditFields []string  // Config field values for editing
-	configFieldIndex int       // Currently selected config field
-	isEditingText    bool       // Whether we're currently editing text in an input
-	cursorVisible    bool      // Animation for blinking cursor
-	program        *tea.Program // Reference to the running program for sending messages
+	// Core state
+	state   ViewState
+	flow    *BuildFlow
+	ctx     context.Context
+	
+	// Bubbles components
+	keyMap         components.KeyMap
+	help           help.Model
+	buildSelector  *components.ListSelectorComponent
+	outputInput    *components.TextInputComponent
+	actionSelector *components.ListSelectorComponent
+	filePicker     *components.FilePickerComponent
+	fileSelector   *components.ListSelectorComponent // For automatic file discovery
+	configForm     *components.ConfigFormComponent
+	progress       *components.ProgressComponent
+	result         *components.ResultComponent
+	
+	// Layout
+	width  int
+	height int
+	
+	// File selection mode
+	useFilePicker bool // true = manual picker, false = automatic list
+	
+	// Build process
+	buildResult *BuildResult
+	program     *tea.Program
 }
 
-// Messages for Bubble Tea
-type BuildStepStartMsg struct{ StepName string }
-type BuildStepCompleteMsg struct{ StepName string; Success bool }
-type BuildOutputMsg struct{ Output string }
-type tickMsg time.Time
-type animateMsg time.Time
-
-// Command to send tick messages for animations
-func tick() tea.Cmd {
-	return tea.Tick(time.Millisecond*500, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-// Command to send animation messages for spinner updates
-func animate() tea.Cmd {
-	return tea.Tick(time.Millisecond*16, func(t time.Time) tea.Msg { // ~60fps
-		return animateMsg(t)
-	})
-}
-
-var (
-	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4")).
-		Padding(0, 1)
-
-	infoStyle = lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
-		Padding(1, 2)
-
-	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF5555"))
-)
-
-// BuildFlow represents the build configuration flow
+// BuildFlow represents the build configuration flow (unchanged)
 type BuildFlow struct {
 	BuildType    string
 	SubType      string
@@ -112,876 +70,289 @@ type BuildFlow struct {
 	OutputDir    string
 	Config       *config.Config
 	ConfigEdited bool
-	BuildResult  *BuildResult // Store build result for post-TUI logging
+	BuildResult  *BuildResult
 }
 
-// BuildResult holds the result of a build operation
+// BuildResult holds the result of a build operation (unchanged)
 type BuildResult struct {
 	Success bool
 	Error   error
 	Flow    *BuildFlow
 }
 
-// RunBuildTUI starts the interactive build TUI
-func RunBuildTUI(ctx context.Context) error {
-	// Initialize the model with spinner animations
-	buildSteps := []BuildStep{
-		{Name: "Copy AOS Files", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-		{Name: "Bundle Lua", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-		{Name: "Inject Code", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-		{Name: "Build WASM", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-		{Name: "Copy Outputs", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-		{Name: "Cleanup", Status: StepPending, Spinner: harmonica.NewSpring(1.0, 0.8, 0.0), SpinPhase: 0},
-	}
+// Messages for Bubble Tea
+type BuildStepStartMsg struct{ StepName string }
+type BuildStepCompleteMsg struct{ StepName string; Success bool }
+type BuildCompleteMsg struct{ Result *BuildResult }
+type TickMsg struct{}
 
-	m := &Model{
-		state: ViewBuildTypeSelection,
-		flow:  &BuildFlow{},
-		buildSteps: buildSteps,
-		outputLines: []string{},
-		availableOptions: []string{"AOS Flavour"},
-	}
-
-	// Start the Bubble Tea program
-	p := tea.NewProgram(m, tea.WithAltScreen())
-	m.program = p // Store reference for sending messages from callbacks
+// NewModel creates a new modernized TUI model
+func NewModel(ctx context.Context) *Model {
+	// Initialize components
+	keyMap := components.DefaultKeyMap()
+	helpModel := help.New()
 	
-	// Run the program
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("failed to run TUI: %w", err)
+	// Create build type selector
+	buildSelector := components.CreateBuildTypeSelector(40, 10)
+	
+	// Initialize progress component
+	progress := components.NewProgressComponent(40, 10)
+	
+	return &Model{
+		state:         ViewBuildTypeSelection,
+		flow:          &BuildFlow{},
+		ctx:           ctx,
+		keyMap:        keyMap,
+		help:          helpModel,
+		buildSelector: buildSelector,
+		progress:      progress,
 	}
-
-	// After TUI exits, log build results to console
-	if m.flow.BuildResult != nil {
-		logBuildResult(m.flow.BuildResult)
-	}
-
-	return nil
 }
 
 // Init implements the Bubble Tea model interface
 func (m *Model) Init() tea.Cmd {
-	// Initialize cursor visibility
-	m.cursorVisible = true
-	
-	return tea.Batch(tick(), animate())
+	return tea.Batch(
+		m.buildSelector.Init(),
+		tea.EnterAltScreen,
+	)
 }
 
-// Update implements the Bubble Tea model interface
+// Update handles Bubble Tea messages
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.terminalWidth = msg.Width
-		m.terminalHeight = msg.Height
-		return m, nil
-		
-	case tickMsg:
-		// Toggle cursor visibility for blinking effect
-		m.cursorVisible = !m.cursorVisible
-		return m, tick()
-		
-	case animateMsg:
-		// Update spinner animations for running build steps
-		for i := range m.buildSteps {
-			if m.buildSteps[i].Status == StepRunning {
-				m.buildSteps[i].SpinPhase += 0.1
-				if m.buildSteps[i].SpinPhase > 2*3.14159 {
-					m.buildSteps[i].SpinPhase = 0
-				}
-			}
-		}
-		return m, animate()
+		m.width = msg.Width
+		m.height = msg.Height
+		m.resizeComponents()
 		
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		// Global key bindings
+		switch {
+		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
-		case "up", "k":
-			if m.state == ViewConfigEditing {
-				if m.selectedIndex >= 4 {
-					// From buttons back to last input field
-					m.selectedIndex = 3
-					m.isEditingText = true  // Auto-enable editing
-				} else if m.selectedIndex > 0 {
-					// Navigate up through input fields
-					m.selectedIndex--
-					m.isEditingText = true  // Auto-enable editing
-				}
-			} else {
-				if m.selectedIndex > 0 {
-					m.selectedIndex--
-				}
-			}
-		case "down", "j":
-			if m.state == ViewConfigEditing {
-				if m.selectedIndex < 3 {
-					// Navigate down through input fields
-					m.selectedIndex++
-					m.isEditingText = true  // Auto-enable editing
-				} else if m.selectedIndex == 3 {
-					// From last input field to first button
-					m.selectedIndex = 4
-					m.isEditingText = false  // Disable editing for buttons
-				}
-			} else {
-				if m.selectedIndex < len(m.availableOptions)-1 {
-					m.selectedIndex++
-				}
-			}
-		case "left", "h":
-			if m.state == ViewConfigEditing {
-				if m.selectedIndex == 0 {
-					// Handle Target field selector - switch to previous option
-					if m.configEditFields[0] == "2" {
-						m.configEditFields[0] = "1"  // Switch to WASM 32-bit
-					}
-				} else if m.selectedIndex >= 4 {
-					// In button container, move left (Cancel = 5, Save = 4)
-					m.selectedIndex = 5
-				}
-			}
-		case "right", "l":
-			if m.state == ViewConfigEditing {
-				if m.selectedIndex == 0 {
-					// Handle Target field selector - switch to next option
-					if m.configEditFields[0] == "1" {
-						m.configEditFields[0] = "2"  // Switch to WASM 64-bit
-					}
-				} else if m.selectedIndex >= 4 {
-					// In button container, move right (Cancel = 5, Save = 4)
-					m.selectedIndex = 4
-				}
-			}
-		case "tab":
-			if m.state == ViewConfigEditing && m.selectedIndex < 4 {
-				// From input fields to button container
-				m.selectedIndex = 4
-			}
-		case "enter":
-			return m.handleSelection()
-		case "esc":
-			if m.state == ViewConfigEditing {
-				// Exit config editing entirely
-				m.state = ViewConfigReview
-				m.availableOptions = []string{"Use current config", "Edit config"}
-				m.selectedIndex = 0
-				m.isEditingText = false
-				return m, nil
-			}
-		case "backspace":
-			if m.state == ViewConfigEditing && m.isEditingText && m.selectedIndex > 0 && m.selectedIndex < 4 {
-				// Handle backspace in text input (skip Target field which is index 0)
-				if m.selectedIndex < len(m.configEditFields) && len(m.configEditFields[m.selectedIndex]) > 0 {
-					m.configEditFields[m.selectedIndex] = m.configEditFields[m.selectedIndex][:len(m.configEditFields[m.selectedIndex])-1]
-				}
-				return m, nil
-			}
-
-		default:
-			// Handle character input for non-Target fields
-			if m.state == ViewConfigEditing && m.isEditingText && m.selectedIndex > 0 && m.selectedIndex < 4 {
-				// Check if it's a printable character
-				if len(msg.String()) == 1 && msg.String()[0] >= 32 && msg.String()[0] <= 126 {
-					// Add character to current field
-					if m.selectedIndex < len(m.configEditFields) {
-						m.configEditFields[m.selectedIndex] += msg.String()
-					}
-					return m, nil
-				}
-			}
+		case key.Matches(msg, m.keyMap.Help):
+			// Toggle help - could be implemented later
+			return m, nil
+		case key.Matches(msg, m.keyMap.Back):
+			return m.handleBack()
+		}
+		
+		// State-specific handling
+		switch m.state {
+		case ViewBuildTypeSelection:
+			return m.updateBuildTypeSelection(msg)
+		case ViewEntrypointSelection:
+			return m.updateEntrypointSelection(msg)
+		case ViewOutputDirectory:
+			return m.updateOutputDirectory(msg)
+		case ViewConfigReview:
+			return m.updateConfigReview(msg)
+		case ViewConfigEditing:
+			return m.updateConfigEditing(msg)
+		case ViewBuildRunning:
+			return m.updateBuildRunning(msg)
+		case ViewBuildSuccess, ViewBuildError:
+			return m.updateBuildResult(msg)
 		}
 		
 	case BuildStepStartMsg:
-		// Update step status to running and start spinner animation
-		for i := range m.buildSteps {
-			if m.buildSteps[i].Name == msg.StepName {
-				m.buildSteps[i].Status = StepRunning
-				m.buildSteps[i].SpinPhase = 0 // Reset spin phase
-				break
+		if m.progress != nil {
+			steps := []components.BuildStep{
+				{Name: msg.StepName, Status: components.StepRunning},
 			}
+			m.progress.UpdateSteps(steps)
 		}
-		return m, nil
 		
 	case BuildStepCompleteMsg:
-		// Update step status to success or failed
-		for i := range m.buildSteps {
-			if m.buildSteps[i].Name == msg.StepName {
-				if msg.Success {
-					m.buildSteps[i].Status = StepSuccess
-				} else {
-					m.buildSteps[i].Status = StepFailed
-				}
-				break
+		if m.progress != nil {
+			status := components.StepSuccess
+			if !msg.Success {
+				status = components.StepFailed
 			}
+			steps := []components.BuildStep{
+				{Name: msg.StepName, Status: status},
+			}
+			m.progress.UpdateSteps(steps)
 		}
 		
-		// If this was the main build step, transition to complete state
-		if msg.StepName == "Build" {
-			m.state = ViewBuildComplete
-			// Auto-quit after a short delay
-			return m, tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
-				return tea.Quit()
+	case BuildCompleteMsg:
+		m.buildResult = msg.Result
+		if msg.Result.Success {
+			m.state = ViewBuildSuccess
+		} else {
+			m.state = ViewBuildError
+		}
+		
+		// Create result component 
+		// Using content methods that don't apply their own sizing/borders
+		m.result = components.NewResultComponent(
+			msg.Result.Success,
+			msg.Result,
+			0, // Width not used by content methods
+			0, // Height not used by content methods
+		)
+		
+		return m, nil
+		
+	case TickMsg:
+		// Update progress animations during build
+		if m.state == ViewBuildRunning && m.progress != nil {
+			m.progress.UpdateAnimations()
+			// Continue ticking while in build running state
+			return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+				return TickMsg{}
 			})
 		}
-		
-		return m, nil
-		
-	case BuildOutputMsg:
-		// Add output line
-		m.outputLines = append(m.outputLines, msg.Output)
-		// Keep only last 20 lines
-		if len(m.outputLines) > 20 {
-			m.outputLines = m.outputLines[len(m.outputLines)-20:]
-		}
-		return m, nil
 	}
 	
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
-// View implements the Bubble Tea model interface
+// View renders the TUI
 func (m *Model) View() string {
-	// Center the container in terminal
-	containerWidth := 90
-	leftPadding := (m.terminalWidth - containerWidth) / 2
-	if leftPadding < 0 {
-		leftPadding = 0
+	if m.width == 0 || m.height == 0 {
+		return "Loading..."
 	}
 	
-	// Create the main layout
-	content := m.createMainLayout()
+	// Calculate container width with margin to prevent overflow
+	containerWidth := m.width - 10
+	header := components.CreateHeader(m.getViewTitle(), containerWidth)
 	
-	// Center horizontally
-	centeredContent := lipgloss.NewStyle().
-		MarginLeft(leftPadding).
-		Render(content)
-	
-	// Center vertically if terminal is tall enough
-	if m.terminalHeight > 20 {
-		topPadding := (m.terminalHeight - 20) / 2
-		if topPadding > 0 {
-			centeredContent = lipgloss.NewStyle().
-				MarginTop(topPadding).
-				Render(centeredContent)
-		}
-	}
-	
-	return centeredContent
-}
-
-// handleSelection processes the current selection
-func (m *Model) handleSelection() (tea.Model, tea.Cmd) {
+	// Create main content based on state
+	var content string
 	switch m.state {
 	case ViewBuildTypeSelection:
-		m.flow.BuildType = "aos"
-		m.state = ViewConfiguration
-		m.availableOptions = []string{"Standard build"}
-		m.selectedIndex = 0
-		
-	case ViewConfiguration:
-		m.flow.SubType = "standard"
-		m.state = ViewEntrypointSelection
-		
-		// Scan filesystem for actual Lua files
-		cwd, err := os.Getwd()
-		if err != nil {
-			debug.Error("Failed to get current working directory: %v\n", err)
-			// Fallback to examples if filesystem scan fails
-			m.availableOptions = []string{"main.lua", "src/init.lua"}
-		} else {
-			luaFiles, err := findLuaFiles(cwd)
-			if err != nil || len(luaFiles) == 0 {
-				debug.Error("Failed to find Lua files or no Lua files found: %v\n", err)
-				// Fallback to examples if no Lua files found
-				m.availableOptions = []string{"main.lua", "src/init.lua", "index.lua"}
-			} else {
-				// Convert absolute paths to relative paths for display
-				m.availableOptions = make([]string, 0, len(luaFiles))
-				for _, file := range luaFiles {
-					relPath, err := filepath.Rel(cwd, file)
-					if err != nil {
-						// If relative path fails, use the absolute path
-						m.availableOptions = append(m.availableOptions, file)
-					} else {
-						m.availableOptions = append(m.availableOptions, relPath)
-					}
-				}
-			}
-		}
-		m.selectedIndex = 0
-		
+		content = m.viewBuildTypeSelection()
 	case ViewEntrypointSelection:
-		m.flow.Entrypoint = m.availableOptions[m.selectedIndex]
-		m.state = ViewOutputDirectory
-		m.availableOptions = []string{"./dist", "./build", "./output"}
-		m.selectedIndex = 0
-		
+		content = m.viewEntrypointSelection()
 	case ViewOutputDirectory:
-		m.flow.OutputDir = m.availableOptions[m.selectedIndex]
-		m.state = ViewConfigReview
-		m.availableOptions = []string{"Use current config", "Edit config"}
-		m.selectedIndex = 0
-		
+		content = m.viewOutputDirectory()
 	case ViewConfigReview:
-		if m.selectedIndex == 0 {
-			// Use current config - load it first, then start build
-			cfg, err := m.loadConfigForEdit()
-			if err != nil {
-							// Use default config if loading fails
-			cfg = &config.Config{
-				Target:        config.DefaultTarget,
-				StackSize:     config.DefaultStackSize,
-				InitialMemory: config.DefaultInitialMemory,
-				MaximumMemory: config.DefaultMaximumMemory,
-				ComputeLimit:  config.DefaultComputeLimit,
-				ModuleFormat:  config.DefaultModuleFormat,
-				AOSGitHash:    config.DefaultAOSGitHash,
-			}
-			}
-			m.flow.Config = cfg
-			
-			m.state = ViewBuildRunning
-			return m, m.startBuild()
-		} else {
-			// Edit config - load the actual config and switch to edit mode
-			return m.loadAndEditConfig()
-		}
-		
+		content = m.viewConfigReview()
 	case ViewConfigEditing:
-		if m.selectedIndex < 4 {
-			// Editing a config field - this will be handled by keyboard input
-		} else if m.selectedIndex == 4 {
-			// Save & Build
-			return m.saveConfigAndBuild()
-		} else if m.selectedIndex == 5 {
-			// Cancel - go back to config review
-			m.state = ViewConfigReview
-			m.availableOptions = []string{"Use current config", "Edit config"}
-			m.selectedIndex = 0
-		}
-		
+		content = m.viewConfigEditing()
 	case ViewBuildRunning:
-		// Build is running, no action needed
-		
-	case ViewBuildComplete:
-		return m, tea.Quit
+		content = m.viewBuildRunning()
+	case ViewBuildSuccess, ViewBuildError:
+		content = m.viewBuildResult()
 	}
 	
-	return m, nil
-}
-
-// createMainLayout creates the full application layout
-func (m *Model) createMainLayout() string {
-	// Header - spans full width
-	header := m.createHeader()
-	
-	// Left panel - either selector or build steps
-	leftPanel := m.createLeftPanel()
-	
-	// Right panel - either description or output
-	rightPanel := m.createRightPanel()
-	
-	// Align panels with header and controls (no centering)
-	panelsContent := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, " ", rightPanel)  // Reduced gap
-	
-	// Controls section
+	// Create controls/help with proper width
 	controls := m.createControls()
 	
-	// Combine all sections vertically with reduced spacing
-	fullLayout := lipgloss.JoinVertical(lipgloss.Left,
+	// Create main layout with proper container
+	mainLayout := lipgloss.JoinVertical(lipgloss.Left,
 		header,
-		panelsContent,  // Aligned panels, no centering
+		content,
 		controls,
 	)
 	
-	// Wrap in main container with reduced padding
+	// Create bordered container that fits the terminal with some margin
 	container := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#874BFD")).
-		Padding(0, 1).  // Reduced padding: half of original (1,2) -> (0,1)
-		Width(90).
-		Render(fullLayout)
+		Padding(0, 1).
+		Width(containerWidth).
+		Render(mainLayout)
+	
+	// Center the container horizontally
+	leftMargin := (m.width - containerWidth) / 2
+	container = lipgloss.NewStyle().
+		MarginLeft(leftMargin).
+		Render(container)
+	
+	// Only center vertically if we have plenty of extra space
+	// Be conservative to avoid overflow
+	if m.height > 35 {
+		// Only add a small top margin, don't try to center completely
+		topPadding := 2
+		container = lipgloss.NewStyle().
+			MarginTop(topPadding).
+			Render(container)
+	}
 	
 	return container
 }
 
-// createHeader creates the header section
-func (m *Model) createHeader() string {
-	title := m.getViewTitle()
-	// Calculate available width: container content width (88) minus border
-	availableWidth := 88 - 2  // Subtract border width
-	return lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).  // Purple text, no background
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
-		Padding(0, 1).  // Reduced padding
-		Width(availableWidth).
-		Align(lipgloss.Center).
-		Render(title)
+// resizeComponents updates component sizes when terminal is resized
+func (m *Model) resizeComponents() {
+	basePanelWidth := m.getPanelWidth()
+	panelHeight := m.getPanelHeight()
+	
+	// Use the same width calculation as createTwoPanelLayout
+	actualPanelWidth := basePanelWidth - 2 // Match the layout's panel width
+	
+	if m.buildSelector != nil {
+		m.buildSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.outputInput != nil {
+		m.outputInput.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.actionSelector != nil {
+		m.actionSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.filePicker != nil {
+		m.filePicker.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.fileSelector != nil {
+		m.fileSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.configForm != nil {
+		m.configForm.SetSize(actualPanelWidth, panelHeight)
+	}
+	// Note: progress and result components no longer need sizing since they use content methods
 }
 
-// createLeftPanel creates the left panel content
-func (m *Model) createLeftPanel() string {
-	if m.state == ViewBuildRunning || m.state == ViewBuildComplete {
-		return m.createBuildStepsPanel()
-	} else if m.state == ViewConfigEditing {
-		return m.createConfigEditPanel()
+// getPanelWidth calculates the width for panels based on the container width
+func (m *Model) getPanelWidth() int {
+	// Container width with margin
+	containerWidth := m.width - 10
+	// Available width inside the container
+	// Container has explicit width set, so only padding (2 chars) reduces available space
+	layoutWidth := containerWidth - 2
+	
+	// Each panel gets half the layout width minus gap, but use more space
+	// Gap is 1 char, so each panel gets (layoutWidth - 1) / 2, plus some extra
+	basePanelWidth := (layoutWidth - 1) / 2
+	panelWidth := basePanelWidth + 3 // Add 3 chars to each panel to use more space
+	
+	// Ensure minimum width
+	if panelWidth < 15 {
+		panelWidth = 15
 	}
-	return m.createSelectorPanel()
+	
+	return panelWidth
 }
 
-// createRightPanel creates the right panel content
-func (m *Model) createRightPanel() string {
-	if m.state == ViewBuildRunning || m.state == ViewBuildComplete {
-		return m.createOutputPanel()
-	} else if m.state == ViewConfigEditing {
-		return m.createConfigDescriptionPanel()
-	}
-	return m.createDescriptionPanel()
+// getPanelHeight calculates the height for panels based on their content needs
+func (m *Model) getPanelHeight() int {
+	// Return a reasonable fixed height for panels - let them be compact
+	// The container will size itself naturally based on the content
+	return 12
 }
 
-// createSelectorPanel creates the left selector panel
-func (m *Model) createSelectorPanel() string {
-	content := ""
+// getContentHeight calculates the available height for content area (excluding header and footer)
+func (m *Model) getContentHeight() int {
+	// Terminal height minus header (2 lines) minus footer (2 lines) minus container borders/padding
+	// Container has: 2 chars for top/bottom borders + 2 chars for top/bottom padding = 4 chars total
+	// Header and footer are 2 lines each = 4 lines total
+	// Make layout 1 line smaller to prevent overflow
+	contentHeight := m.height - 4 - 4 - 1 // 4 for header+footer, 4 for container, 1 for safety
 	
-	// Add options with highlighting for selected
-	for i, option := range m.availableOptions {
-		if i == m.selectedIndex {
-			// Selected option: highlighted and underlined
-			selectedStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#874BFD")).
-				Bold(true).
-				Underline(true)
-			content += "❯ " + selectedStyle.Render(option) + "\n"
-		} else {
-			content += "  " + option + "\n"
-		}
+	// Ensure minimum height
+	if contentHeight < 8 {
+		contentHeight = 8
 	}
 	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(content)
-}
-
-// createBuildStepsPanel creates the build steps panel with status indicators
-func (m *Model) createBuildStepsPanel() string {
-	content := "Build Progress:\n\n"
-	
-	for _, step := range m.buildSteps {
-		icon := ""
-		switch step.Status {
-		case StepPending:
-			icon = "○"  // Circle for pending
-		case StepRunning:
-			// Animated spinner using rotation
-			spinnerChars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-			spinnerIndex := int(step.SpinPhase*float64(len(spinnerChars))/6.28) % len(spinnerChars)
-			icon = spinnerChars[spinnerIndex]
-		case StepSuccess:
-			icon = "✓"  // Check for success
-		case StepFailed:
-			icon = "✗"  // X for failed
-		}
-		content += fmt.Sprintf("%s %s\n", icon, step.Name)
-	}
-	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(content)
-}
-
-// createConfigEditPanel creates the config editing panel
-func (m *Model) createConfigEditPanel() string {
-	fieldNames := []string{"WASM Target", "Stack Size (MB)", "Initial Memory (MB)", "Maximum Memory (MB)"}
-	
-	// Create horizontal label/input layout
-	var content string
-	
-	for i, fieldName := range fieldNames {
-		value := ""
-		if i < len(m.configEditFields) {
-			value = m.configEditFields[i]
-		}
-		
-		// Label styling - simple, no borders or fixed width
-		var label string
-		if i == m.selectedIndex {
-			labelStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#874BFD")).
-				Bold(true).
-				Align(lipgloss.Left).
-				Padding(0, 2, 0, 0)
-			label = labelStyle.Render(fieldName)
-		} else {
-			labelStyle := lipgloss.NewStyle().
-				Align(lipgloss.Left).
-				Padding(0, 2, 0, 0)
-			label = labelStyle.Render(fieldName)
-		}
-		
-		// Input styling - different behavior for Target field (selector) vs others (text input)
-		var input string
-		if i == 0 { // Target field - selector
-			// Create both WASM 32 and WASM 64 options
-			var wasm32, wasm64 string
-			
-			if value == "1" {
-				// WASM 32 is selected
-				wasm32Style := lipgloss.NewStyle().
-					Background(lipgloss.Color("#874BFD")).
-					Foreground(lipgloss.Color("#FFFFFF")).
-					Padding(0, 1)
-				wasm32 = wasm32Style.Render("WASM 32")
-				
-				wasm64Style := lipgloss.NewStyle().
-					Background(lipgloss.Color("#444")).
-					Foreground(lipgloss.Color("#AAA")).
-					Padding(0, 1)
-				wasm64 = wasm64Style.Render("WASM 64")
-			} else {
-				// WASM 64 is selected
-				wasm32Style := lipgloss.NewStyle().
-					Background(lipgloss.Color("#444")).
-					Foreground(lipgloss.Color("#AAA")).
-					Padding(0, 1)
-				wasm32 = wasm32Style.Render("WASM 32")
-				
-				wasm64Style := lipgloss.NewStyle().
-					Background(lipgloss.Color("#874BFD")).
-					Foreground(lipgloss.Color("#FFFFFF")).
-					Padding(0, 1)
-				wasm64 = wasm64Style.Render("WASM 64")
-			}
-			
-			// Join the options horizontally
-			optionsGroup := lipgloss.JoinHorizontal(lipgloss.Left, wasm32, " ", wasm64)
-			
-			inputStyle := lipgloss.NewStyle().
-				Align(lipgloss.Left)
-			input = inputStyle.Render(optionsGroup)
-		} else { // Other fields - text input
-			if i == m.selectedIndex {
-				// Selected input: show blinking cursor (auto-editing)
-				var cursor string
-				if m.cursorVisible {
-					cursor = "┃"  // Visible cursor
-				} else {
-					cursor = " "  // Invisible cursor (blink effect)
-				}
-				inputText := value + cursor
-				
-				inputStyle := lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#874BFD")).
-					Align(lipgloss.Left)
-				input = inputStyle.Render(inputText)
-			} else {
-				// Unselected input: simple text
-				inputStyle := lipgloss.NewStyle().
-					Align(lipgloss.Left)
-				input = inputStyle.Render(value)
-			}
-		}
-		
-		// Create label/input group with proper spacing and alignment
-		labelInputGroup := lipgloss.JoinHorizontal(lipgloss.Left, label, input)
-		
-		// Container for the label/input group with border
-		// Horizontally justified (content distributed), vertically centered, aligned left
-		var containerStyle lipgloss.Style
-		if i == m.selectedIndex {
-			containerStyle = lipgloss.NewStyle().
-				BorderStyle(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#874BFD")).
-				Padding(0, 1).
-				Width(35).
-				Height(1).
-				AlignVertical(lipgloss.Center).
-				AlignHorizontal(lipgloss.Left)
-		} else {
-			containerStyle = lipgloss.NewStyle().
-				BorderStyle(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("#666")).
-				Padding(0, 1).
-				Width(35).
-				Height(1).
-				AlignVertical(lipgloss.Center).
-				AlignHorizontal(lipgloss.Left)
-		}
-		
-		containerRow := containerStyle.Render(labelInputGroup)
-		content += containerRow + "\n"
-	}
-	
-	// Add centered horizontal button container at bottom
-	// Calculate 50% width for each button (accounting for gap)
-	buttonAreaWidth := 37  // Full panel content width
-	buttonWidth := (buttonAreaWidth - 1) / 2  // 18 chars each, minus 1 for gap
-	
-	var cancelBtn, saveBtn string
-	
-	if m.selectedIndex == 5 {
-		// Cancel selected
-		cancelStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#874BFD")).
-			Bold(true).
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#874BFD")).
-			Padding(0, 1).
-			Width(buttonWidth).
-			MaxWidth(buttonWidth).
-			Align(lipgloss.Center).
-			Inline(true)
-		cancelBtn = cancelStyle.Render("Cancel")
-	} else {
-		cancelStyle := lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#666")).
-			Padding(0, 1).
-			Width(buttonWidth).
-			MaxWidth(buttonWidth).
-			Align(lipgloss.Center).
-			Inline(true)
-		cancelBtn = cancelStyle.Render("Cancel")
-	}
-	
-	if m.selectedIndex == 4 {
-		// Save & Build selected
-		saveStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#874BFD")).
-			Bold(true).
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#874BFD")).
-			Padding(0, 1).
-			Width(buttonWidth).
-			MaxWidth(buttonWidth).
-			Align(lipgloss.Center).
-			Inline(true)
-		saveBtn = saveStyle.Render("Save & Build")
-	} else {
-		saveStyle := lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#666")).
-			Padding(0, 1).
-			Width(buttonWidth).
-			MaxWidth(buttonWidth).
-			Align(lipgloss.Center).
-			Inline(true)
-		saveBtn = saveStyle.Render("Save & Build")
-	}
-	
-	// Join buttons horizontally and center them
-	buttonContainer := lipgloss.JoinHorizontal(lipgloss.Top, cancelBtn, " ", saveBtn)
-	centeredButtons := lipgloss.NewStyle().
-		Width(37).  // Full panel content width
-		Align(lipgloss.Center).
-		Render(buttonContainer)
-	
-	// Center the fields content and use JoinVertical to stick buttons to bottom
-	centeredFields := lipgloss.NewStyle().
-		Width(37).
-		Align(lipgloss.Center).
-		Render(content)
-	
-	// Use JoinVertical with spacing to separate fields from buttons
-	finalContent := lipgloss.JoinVertical(lipgloss.Center, centeredFields, centeredButtons)
-	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(finalContent)
-}
-
-// createConfigDescriptionPanel creates the config description panel
-func (m *Model) createConfigDescriptionPanel() string {
-	var header, body string
-	
-	if m.selectedIndex < 4 {
-		fieldNames := []string{"Target", "Stack Size", "Initial Memory", "Maximum Memory"}
-		descriptions := []string{
-			"WASM target architecture\n\nSelect between 32-bit and 64-bit WASM compilation targets. Use ←/→ to toggle between options.",
-			"Stack size in megabytes (MB) for the WASM runtime",
-			"Initial memory allocation in megabytes (MB)",
-			"Maximum memory limit in megabytes (MB)",
-		}
-		
-		if m.selectedIndex < len(fieldNames) {
-			header = fieldNames[m.selectedIndex]
-			body = descriptions[m.selectedIndex]
-		}
-	} else if m.selectedIndex == 4 {
-		header = "Save & Build"
-		body = "Save the configuration changes and start the build process"
-	} else if m.selectedIndex == 5 {
-		header = "Cancel"
-		body = "Cancel editing and return to configuration review"
-	} else {
-		header = "Configuration"
-		body = "Edit the build configuration values"
-	}
-	
-	// Create styled content
-	styledHeader := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
-		Render(header)
-	
-	content := fmt.Sprintf("%s\n\n%s", styledHeader, body)
-	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(content)
-}
-
-// createControls creates the controls section
-func (m *Model) createControls() string {
-	// Don't show controls during build
-	if m.state == ViewBuildRunning || m.state == ViewBuildComplete {
-		return ""
-	}
-	
-	var controls string
-	
-	if m.state == ViewConfigEditing {
-		if m.selectedIndex < 4 {
-			// In input fields (always editing)
-			controls = "↑/↓ Navigate   •   Esc Exit   •   q Quit"
-		} else {
-			// In button container
-			controls = "←/→ Select Button  •   Esc Exit   •   q Quit"
-		}
-	} else {
-		controls = "↑/↓ Navigate   •   Enter Select   •   q Quit"
-	}
-	
-	// Calculate available width: container content width (88) minus border + padding
-	availableWidth := 88 - 4  // 2 for border + 2 for horizontal padding
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).  // Reduced padding
-		Width(availableWidth).
-		Align(lipgloss.Center).
-		Render(controls)
-}
-
-// createDescriptionPanel creates the description panel
-func (m *Model) createDescriptionPanel() string {
-	var header, body string
-	
-	switch m.state {
-	case ViewBuildTypeSelection:
-		if m.selectedIndex < len(m.availableOptions) && m.availableOptions[m.selectedIndex] == "AOS Flavour" {
-			header = "AOS Flavour"
-			body = "Builds a wasm binary with your Lua injected into the base AOS process"
-		}
-	case ViewConfiguration:
-		header = "Standard Build"
-		body = "Uses the default AOS build configuration with standard optimizations"
-	case ViewEntrypointSelection:
-		header = "Entrypoint File"
-		body = "The main Lua file that will be bundled and injected into the AOS process"
-	case ViewOutputDirectory:
-		header = "Output Directory"
-		body = "Directory where the compiled WASM file and bundled Lua code will be saved"
-	case ViewConfigReview:
-		header = "Configuration"
-		body = "Review and optionally edit the .harlequin.yaml configuration before building"
-	default:
-		header = "Select an option"
-		body = "Choose from the available options to see detailed information"
-	}
-	
-	// Create styled content
-	styledHeader := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
-		Render(header)
-	
-	content := fmt.Sprintf("%s\n\n%s", styledHeader, body)
-	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(content)
-}
-
-// createOutputPanel creates the output panel for build logs
-func (m *Model) createOutputPanel() string {
-	content := "Build Output:\n\n"
-	
-	for _, line := range m.outputLines {
-		content += line + "\n"
-	}
-	
-	if len(m.outputLines) == 0 {
-		content += "Waiting for output..."
-	}
-	
-	// Calculate 50% of available width accounting for borders and gap
-	// Each panel has 2-char border, plus 1-char gap = 5 chars overhead total
-	availableContentWidth := 88 - 5  // Container width minus borders and gap
-	panelWidth := availableContentWidth / 2  // About 41 chars each
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(0, 1).
-		Width(panelWidth).
-		Height(12).
-		Render(content)
+	return contentHeight
 }
 
 // getViewTitle returns the title for the current view
 func (m *Model) getViewTitle() string {
 	switch m.state {
 	case ViewBuildTypeSelection:
-		return "Select Build Type"
-	case ViewConfiguration:
 		return "Select Build Configuration"
 	case ViewEntrypointSelection:
 		return "Select Entrypoint File"
@@ -993,826 +364,655 @@ func (m *Model) getViewTitle() string {
 		return "Edit Configuration"
 	case ViewBuildRunning:
 		return "Building Project"
-	case ViewBuildComplete:
-		return "Build Complete"
-	default:
-		return "Harlequin Build Tool"
+	case ViewBuildSuccess:
+		return "Build Successful!"
+	case ViewBuildError:
+		return "Build Failed"
+	}
+	return "Harlequin Build"
+}
+
+// viewBuildTypeSelection renders the build type selection view
+func (m *Model) viewBuildTypeSelection() string {
+	if m.buildSelector == nil {
+		return "Loading build types..."
+	}
+	
+	leftPanel := m.buildSelector.View()
+	
+	// Right panel with description
+	selected := m.buildSelector.GetSelected()
+	description := "Select a build configuration type to continue."
+	if selected != nil {
+		description = selected.Description()
+	}
+	
+	rightPanel := components.CreateDescriptionPanel(
+		"AOS Flavour",
+		description,
+		m.getPanelWidth() - 2, // Match the panel container width
+		0, // Height not used anymore - panel sizes naturally
+	)
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewEntrypointSelection renders the entrypoint selection view
+func (m *Model) viewEntrypointSelection() string {
+	// Initialize the appropriate selector on first view
+	if m.fileSelector == nil && !m.useFilePicker {
+		// Try automatic discovery first
+		cwd, _ := os.Getwd()
+		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
+		if selector, err := components.CreateEntrypointSelectorWithDiscovery(cwd, actualPanelWidth, m.getPanelHeight()); err == nil {
+			m.fileSelector = selector
+		} else {
+			// Fall back to file picker if discovery fails
+			m.useFilePicker = true
+		}
+	}
+	
+	if m.useFilePicker {
+		// Use manual file picker
+		if m.filePicker == nil {
+			cwd, _ := os.Getwd()
+			actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
+			m.filePicker = components.CreateEntrypointFilePicker(cwd, actualPanelWidth, m.getPanelHeight())
+		}
+		
+		leftPanel := m.filePicker.View()
+		
+		// Right panel with file picker instructions
+		rightPanel := components.CreateDescriptionPanel(
+			"Manual File Selection",
+			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .lua files with Enter\n\nPress 'l' to switch to automatic discovery",
+				m.filePicker.GetCurrentDirectory()),
+			m.getPanelWidth() - 2, // Match the panel container width
+			0, // Height not used anymore
+		)
+		
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	} else {
+		// Use automatic discovery list
+		leftPanel := m.fileSelector.View()
+		
+		// Right panel with discovery info
+		selectedFile := ""
+		if selected := m.fileSelector.GetSelected(); selected != nil {
+			selectedFile = selected.Value()
+		}
+		
+		description := "Automatically discovered .lua files in your project\n\nFiles are found recursively (excluding build directories)\n\nPress 'f' to switch to manual file picker"
+		if selectedFile != "" {
+			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
+		}
+		
+		rightPanel := components.CreateDescriptionPanel(
+			"Auto-discovered Files",
+			description,
+			m.getPanelWidth() - 2, // Match the panel container width
+			0, // Height not used anymore
+		)
+		
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
 	}
 }
 
-// startBuild initiates the build process
-func (m *Model) startBuild() tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-		
-		// Debug: check if flow data is set properly
-		if m.flow.Entrypoint == "" {
-			debug.Error("Build validation failed: No entrypoint selected\n")
-			return BuildOutputMsg{Output: "❌ Error: No entrypoint selected"}
-		}
-		if m.flow.OutputDir == "" {
-			debug.Error("Build validation failed: No output directory selected\n")
-			return BuildOutputMsg{Output: "❌ Error: No output directory selected"}
-		}
-		if m.flow.Config == nil {
-			debug.Error("Build validation failed: No config loaded\n")
-			return BuildOutputMsg{Output: "❌ Error: No config loaded"}
-		}
-		
-		// Create custom callbacks that only update step status (no output messages)
-		callbacks := &builders.BuildCallbacks{
-			OnCopyAOSFiles: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Copy AOS Files", Success: info.Success})
-				}
-			},
-			OnBundleLua: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Bundle Lua", Success: info.Success})
-				}
-			},
-			OnInjectLua: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Inject Code", Success: info.Success})
-				}
-			},
-			OnWasmCompile: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Build WASM", Success: info.Success})
-				}
-			},
-			OnCopyOutputs: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Copy Outputs", Success: info.Success})
-				}
-			},
-			OnCleanup: func(ctx context.Context, info builders.BuildStepInfo) {
-				if m.program != nil {
-					m.program.Send(BuildStepCompleteMsg{StepName: "Cleanup", Success: info.Success})
-				}
-			},
-		}
-		
-		// Send start messages for each step as they begin
-		go func() {
-			stepNames := []string{"Copy AOS Files", "Bundle Lua", "Inject Code", "Build WASM", "Copy Outputs", "Cleanup"}
-			for _, stepName := range stepNames {
-				if m.program != nil {
-					m.program.Send(BuildStepStartMsg{StepName: stepName})
-				}
-				time.Sleep(time.Millisecond * 100) // Small delay to show progression
-			}
-		}()
-		
-		// Create AOSBuilder with the custom callbacks
-		builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
-			Config:         m.flow.Config,
-			ConfigFilePath: nil, // Use default .harlequin.yaml
-			Entrypoint:     m.flow.Entrypoint,
-			OutputDir:      m.flow.OutputDir,
-			Callbacks:      callbacks,
-		})
+// viewOutputDirectory renders the output directory selection view
+func (m *Model) viewOutputDirectory() string {
+	// Create output directory input if not exists
+	if m.outputInput == nil {
+		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
+		m.outputInput = components.CreateOutputDirInput(actualPanelWidth, m.getPanelHeight())
+	}
+	
+	leftPanel := m.outputInput.View()
+	
+	rightPanel := components.CreateDescriptionPanel(
+		"Output Directory",
+		"Enter the path where build outputs should be saved.\n\nThe build will create:\n• WASM binary\n• Lua bundle\n• Configuration files\n\nExamples:\n• ./dist\n• examples/dist\n• ./build",
+		m.getPanelWidth() - 2, // Match the panel container width
+		0, // Height not used anymore
+	)
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
 
-		// Run the build
-		if err := builder.Build(ctx); err != nil {
-			// Log the detailed error to debug file
-			debug.Error("Build failed with error: %v\n", err)
-			debug.Error("Build Configuration:\n")
-			debug.Error("  Entrypoint: %s\n", m.flow.Entrypoint)
-			debug.Error("  Output Directory: %s\n", m.flow.OutputDir)
-			debug.Error("  Build Type: %s\n", m.flow.BuildType)
-			debug.Error("  Sub Type: %s\n", m.flow.SubType)
-			debug.Error("  Config Edited: %t\n", m.flow.ConfigEdited)
-			if m.flow.Config != nil {
-				debug.Error("  Config Details:\n")
-				debug.Error("    Target: %d (WASM %d-bit)\n", m.flow.Config.Target, m.flow.Config.Target)
-				debug.Error("    Stack Size: %d bytes (%.1f MB)\n", m.flow.Config.StackSize, float64(m.flow.Config.StackSize)/1024/1024)
-				debug.Error("    Initial Memory: %d bytes (%.1f MB)\n", m.flow.Config.InitialMemory, float64(m.flow.Config.InitialMemory)/1024/1024)
-				debug.Error("    Maximum Memory: %d bytes (%.1f MB)\n", m.flow.Config.MaximumMemory, float64(m.flow.Config.MaximumMemory)/1024/1024)
-				debug.Error("    Compute Limit: %s\n", m.flow.Config.ComputeLimit)
-				debug.Error("    Module Format: %s\n", m.flow.Config.ModuleFormat)
-				debug.Error("    AOS Git Hash: %s\n", m.flow.Config.AOSGitHash)
-			} else {
-				debug.Error("  Config: nil\n")
-			}
-			debug.Fatal("Build process terminated with error")
-			
-			// Store result for post-TUI console logging
-			m.flow.BuildResult = &BuildResult{
-				Success: false,
-				Error:   err,
-				Flow:    m.flow,
-			}
-			
-			// Send error output and mark build as complete
-			return BuildStepCompleteMsg{StepName: "Build", Success: false}
-		}
+// viewConfigReview renders the configuration review view
+func (m *Model) viewConfigReview() string {
+	// Create config action selector if not exists
+	if m.actionSelector == nil {
+		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
+		m.actionSelector = components.CreateConfigActionSelector(actualPanelWidth, m.getPanelHeight())
+	}
+	
+	leftPanel := m.actionSelector.View()
+	
+	// Right panel with current config preview
+	configPreview := m.formatConfigPreview()
+	rightPanel := components.CreateDescriptionPanel(
+		"Current Configuration",
+		configPreview,
+		m.getPanelWidth() - 2, // Match the panel container width
+		0, // Height not used anymore
+	)
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewConfigEditing renders the configuration editing view
+func (m *Model) viewConfigEditing() string {
+	if m.configForm == nil {
+		// Initialize config form
+		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
+		m.configForm = components.NewConfigForm(actualPanelWidth, m.getPanelHeight())
 		
-		// Log successful build to debug file
-		debug.Info("Build completed successfully!\n")
-		debug.Info("Build Configuration:\n")
-		debug.Info("  Entrypoint: %s\n", m.flow.Entrypoint)
-		debug.Info("  Output Directory: %s\n", m.flow.OutputDir)
-		debug.Info("  Build Type: %s\n", m.flow.BuildType)
-		debug.Info("  Sub Type: %s\n", m.flow.SubType)
-		debug.Info("  Config Edited: %t\n", m.flow.ConfigEdited)
+		// Load current config values
 		if m.flow.Config != nil {
-			debug.Info("  Config Details:\n")
-			debug.Info("    Target: %d (WASM %d-bit)\n", m.flow.Config.Target, m.flow.Config.Target)
-			debug.Info("    Stack Size: %d bytes (%.1f MB)\n", m.flow.Config.StackSize, float64(m.flow.Config.StackSize)/1024/1024)
-			debug.Info("    Initial Memory: %d bytes (%.1f MB)\n", m.flow.Config.InitialMemory, float64(m.flow.Config.InitialMemory)/1024/1024)
-			debug.Info("    Maximum Memory: %d bytes (%.1f MB)\n", m.flow.Config.MaximumMemory, float64(m.flow.Config.MaximumMemory)/1024/1024)
-			debug.Info("    Compute Limit: %s\n", m.flow.Config.ComputeLimit)
-			debug.Info("    Module Format: %s\n", m.flow.Config.ModuleFormat)
-			debug.Info("    AOS Git Hash: %s\n", m.flow.Config.AOSGitHash)
+			m.configForm.SetFieldValues(
+				m.flow.Config.Target,
+				float64(m.flow.Config.StackSize)/(1024*1024),     // Convert to MB
+				float64(m.flow.Config.InitialMemory)/(1024*1024), // Convert to MB
+				float64(m.flow.Config.MaximumMemory)/(1024*1024), // Convert to MB
+			)
 		}
-		
-		// Store result for post-TUI console logging
-		m.flow.BuildResult = &BuildResult{
-			Success: true,
-			Error:   nil,
-			Flow:    m.flow,
-		}
-		
-		// Send success message and mark build as complete
-		return BuildStepCompleteMsg{StepName: "Build", Success: true}
 	}
+	
+	leftPanel := m.configForm.View()
+	
+	// Right panel with field description
+	fieldTitle, fieldDesc := m.configForm.GetCurrentDescription()
+	rightPanel := components.CreateDescriptionPanel(
+		fieldTitle,
+		fieldDesc,
+		m.getPanelWidth() - 2, // Match the panel container width
+		0, // Height not used anymore
+	)
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
-// loadAndEditConfig loads the config and opens the edit form
-func (m *Model) loadAndEditConfig() (tea.Model, tea.Cmd) {
-	// Load config from file or use default
-	cfg, err := m.loadConfigForEdit()
-	if err != nil {
-		// Use default config if loading fails - use realistic default values
-		cfg = &config.Config{
-			Target:        config.DefaultTarget,
-			StackSize:     config.DefaultStackSize,
-			InitialMemory: config.DefaultInitialMemory,
-			MaximumMemory: config.DefaultMaximumMemory,
-			ComputeLimit:  config.DefaultComputeLimit,
-			ModuleFormat:  config.DefaultModuleFormat,
-			AOSGitHash:    config.DefaultAOSGitHash,
+// viewBuildRunning renders the build progress view
+func (m *Model) viewBuildRunning() string {
+	leftPanel := ""
+	if m.progress != nil {
+		leftPanel = m.progress.ViewContent()
+	}
+	
+	rightPanel := components.CreateDescriptionPanel(
+		"Build Progress",
+		"Building your project...\n\nThis may take a few minutes depending on your project size.",
+		m.getPanelWidth() - 2, // Match the panel container width
+		0, // Height not used anymore
+	)
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewBuildResult renders the build success/error view
+func (m *Model) viewBuildResult() string {
+	if m.result == nil {
+		return "No result available"
+	}
+	
+	leftPanel := m.result.ViewPanelContent()
+	rightPanel := m.result.ViewDetailsContent()
+	
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// createTwoPanelLayout creates a side-by-side panel layout with equal width distribution
+func (m *Model) createTwoPanelLayout(leftPanel, rightPanel string) string {
+	panelWidth := m.getPanelWidth() - 2 // Reduce width by 1 to prevent overflow
+	contentHeight := m.getContentHeight()
+	panelHeight := contentHeight - 2 // Make each panel 1 line smaller
+	
+	// Apply left panel style with border and calculated width (left-aligned content)
+	leftStyled := components.LeftPanelStyle.
+		Width(panelWidth).
+		Height(panelHeight).
+		Render(leftPanel)
+	
+	// Apply right panel style with calculated width/height (left-aligned content)
+	rightStyled := components.RightPanelStyle.
+		Width(panelWidth).
+		Height(panelHeight).
+		Render(rightPanel)
+	
+	// Fixed 1-character gap
+	spacer := "" // Exactly 1 space
+	
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		leftStyled,
+		spacer,
+		rightStyled,
+	)
+}
+
+// createControls creates the bottom controls section
+func (m *Model) createControls() string {
+	var controls []string
+	
+	switch m.state {
+	case ViewBuildTypeSelection:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "q Quit"}
+	case ViewEntrypointSelection:
+		if m.useFilePicker {
+			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "Enter Select", "f File Picker", "Esc Back", "q Quit"}
+		}
+	case ViewOutputDirectory:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
+	case ViewConfigReview:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
+	case ViewConfigEditing:
+		if m.configForm != nil && m.configForm.IsInButtons() {
+			controls = []string{"←/→ Select Button", "Enter Confirm", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "←/→ Edit Values", "Tab Buttons", "Esc Back", "q Quit"}
+		}
+	case ViewBuildRunning:
+		controls = []string{"Please wait...", "q Quit"}
+	case ViewBuildSuccess, ViewBuildError:
+		controls = []string{"Enter Exit", "q Quit"}
+	}
+	
+	// Use container width for controls (with same margin as main container)
+	containerWidth := m.width - 10
+	return components.CreateControls(controls, containerWidth)
+}
+
+// formatConfigPreview formats the current config for preview
+func (m *Model) formatConfigPreview() string {
+	if m.flow.Config == nil {
+		return "No configuration loaded"
+	}
+	
+	config := m.flow.Config
+	return fmt.Sprintf(`Build Type: %s
+Entrypoint: %s
+Output: %s
+
+WASM Target: %d-bit
+Stack Size: %.1f MB
+Initial Memory: %.1f MB
+Maximum Memory: %.1f MB`,
+		m.flow.BuildType,
+		m.flow.Entrypoint,
+		m.flow.OutputDir,
+		config.Target,
+		float64(config.StackSize)/(1024*1024),
+		float64(config.InitialMemory)/(1024*1024),
+		float64(config.MaximumMemory)/(1024*1024),
+	)
+}
+
+// Update handlers for each state
+
+func (m *Model) updateBuildTypeSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the list component first
+	model, cmd := m.buildSelector.Update(tea.Msg(msg))
+	if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+		m.buildSelector = newSelector
+	}
+	
+	// Check if enter was pressed after updating the component
+	if key.Matches(msg, m.keyMap.Enter) {
+		if selected := m.buildSelector.GetSelected(); selected != nil {
+			m.flow.BuildType = selected.Value()
+			m.state = ViewEntrypointSelection
+			return m, nil
 		}
 	}
 	
-	// Set the loaded config in flow
-	m.flow.Config = cfg
-	
-	// Initialize config editing fields with user-friendly values
-	targetValue := "1" // Default to WASM 32
-	if cfg.Target == 64 {
-		targetValue = "2" // WASM 64
+	return m, cmd
+}
+
+func (m *Model) updateEntrypointSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		// Switch to file picker mode
+		if !m.useFilePicker {
+			m.useFilePicker = true
+			m.filePicker = nil // Reset to reinitialize
+			return m, nil
+		}
+	case "l":
+		// Switch to list/automatic discovery mode
+		if m.useFilePicker {
+			m.useFilePicker = false
+			m.fileSelector = nil // Reset to reinitialize
+			return m, nil
+		}
 	}
-	m.configEditFields = []string{
-		targetValue,                                              // Target: convert 32/64 to selector values
-		fmt.Sprintf("%.1f", float64(cfg.StackSize)/1024/1024),     // Stack Size: convert bytes to MB
-		fmt.Sprintf("%.1f", float64(cfg.InitialMemory)/1024/1024), // Initial Memory: convert bytes to MB  
-		fmt.Sprintf("%.1f", float64(cfg.MaximumMemory)/1024/1024), // Maximum Memory: convert bytes to MB
-	}
-	m.configFieldIndex = 0
 	
-	// Switch to config editing view
-	m.state = ViewConfigEditing
-	m.availableOptions = []string{"WASM Target", "Stack Size (MB)", "Initial Memory (MB)", "Maximum Memory (MB)", "Save & Build", "Cancel"}
-	m.selectedIndex = 0
-	m.isEditingText = true  // Auto-enable editing for first field
+	if key.Matches(msg, m.keyMap.Enter) {
+		var selectedFile string
+		
+		if m.useFilePicker {
+			if m.filePicker != nil && m.filePicker.HasSelection() {
+				selectedFile = m.filePicker.GetSelectedFile()
+			}
+		} else {
+			if m.fileSelector != nil {
+				if selected := m.fileSelector.GetSelected(); selected != nil {
+					selectedFile = selected.Value()
+				}
+			}
+		}
+		
+		if selectedFile != "" && selectedFile != "No Lua files found" {
+			m.flow.Entrypoint = selectedFile
+			m.state = ViewOutputDirectory
+			return m, nil
+		}
+	}
+	
+	// Update the active component
+	if m.useFilePicker && m.filePicker != nil {
+		model, cmd := m.filePicker.Update(msg)
+		if newPicker, ok := model.(*components.FilePickerComponent); ok {
+			m.filePicker = newPicker
+		}
+		return m, cmd
+	} else if !m.useFilePicker && m.fileSelector != nil {
+		model, cmd := m.fileSelector.Update(msg)
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.fileSelector = newSelector
+		}
+		return m, cmd
+	}
 	
 	return m, nil
 }
 
-// saveConfigAndBuild saves the edited config and starts the build
-func (m *Model) saveConfigAndBuild() (tea.Model, tea.Cmd) {
-	cfg := m.flow.Config
-	if cfg == nil {
-		cfg = &config.Config{}
-		m.flow.Config = cfg
-	}
-	
-	// Parse the edited field values back to config
-	if len(m.configEditFields) >= 4 {
-		// Convert selector value back to actual target value
-		if m.configEditFields[0] == "1" {
-			cfg.Target = 32  // WASM 32-bit
-		} else {
-			cfg.Target = 64  // WASM 64-bit
+func (m *Model) updateOutputDirectory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the output input first
+	if m.outputInput != nil {
+		model, cmd := m.outputInput.Update(tea.Msg(msg))
+		if newInput, ok := model.(*components.TextInputComponent); ok {
+			m.outputInput = newInput
 		}
-		// Convert MB values back to bytes
-		if stackSizeMB, err := strconv.ParseFloat(m.configEditFields[1], 64); err == nil {
-			cfg.StackSize = int(stackSizeMB * 1024 * 1024)
-		}
-		if initialMemoryMB, err := strconv.ParseFloat(m.configEditFields[2], 64); err == nil {
-			cfg.InitialMemory = int(initialMemoryMB * 1024 * 1024)
-		}
-		if maximumMemoryMB, err := strconv.ParseFloat(m.configEditFields[3], 64); err == nil {
-			cfg.MaximumMemory = int(maximumMemoryMB * 1024 * 1024)
-		}
-	}
-	
-	// Mark config as edited and start build
-	m.flow.ConfigEdited = true
-	m.state = ViewBuildRunning
-	return m, m.startBuild()
-}
-
-// loadConfigForEdit loads the config from .harlequin.yaml or build config
-func (m *Model) loadConfigForEdit() (*config.Config, error) {
-	// Try .harlequin.yaml first
-	configPath := ".harlequin.yaml"
-	if _, err := os.Stat(configPath); err == nil {
-		defer func() {
-			if r := recover(); r != nil {
-				// Config file exists but is invalid
-			}
-		}()
 		
-		cfg := config.ReadConfigFile(configPath)
-		if cfg != nil {
-			return cfg, nil
-		}
-	}
-	
-	// Fallback to build config file
-	buildConfigPath := "build_configs/ao-build-config.yml"
-	if _, err := os.Stat(buildConfigPath); err == nil {
-		defer func() {
-			if r := recover(); r != nil {
-				// Build config file exists but is invalid
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			value := m.outputInput.GetValue()
+			if value != "" {
+				m.flow.OutputDir = value
+				
+				// Load or create config
+				m.flow.Config = m.loadOrCreateConfig()
+				m.state = ViewConfigReview
+				return m, nil
 			}
-		}()
+		}
 		
-		cfg := config.ReadConfigFile(buildConfigPath)
-		if cfg != nil {
-			return cfg, nil
+		return m, cmd
+	}
+	
+	return m, nil
+}
+
+func (m *Model) updateConfigReview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the action selector first
+	if m.actionSelector != nil {
+		model, cmd := m.actionSelector.Update(tea.Msg(msg))
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.actionSelector = newSelector
+		}
+		
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			if selected := m.actionSelector.GetSelected(); selected != nil {
+				switch selected.Value() {
+				case "use":
+					// Proceed with current config - go to build
+					m.state = ViewBuildRunning
+					go m.runBuild() // Run build in background
+					// Start progress animations
+					return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+						return TickMsg{}
+					})
+				case "edit":
+					// Go to config editing
+					m.state = ViewConfigEditing
+					return m, nil
+				}
+			}
+		}
+		
+		return m, cmd
+	}
+	
+	return m, nil
+}
+
+func (m *Model) updateConfigEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.Matches(msg, m.keyMap.Enter) && m.configForm.IsInButtons() {
+		action := m.configForm.GetSelectedAction()
+		if action == "save" {
+			// Parse and save config
+			if err := m.saveConfigFromForm(); err != nil {
+				debug.Printf("Error saving config: %v", err)
+				return m, nil
+			}
+			
+			// Start build
+			return m.startBuild()
+		} else if action == "cancel" {
+			m.state = ViewConfigReview
+			return m, nil
 		}
 	}
 	
-	// If both fail, return error to use defaults
-	return nil, fmt.Errorf("no config file found")
+	model, cmd := m.configForm.Update(msg)
+	if newForm, ok := model.(*components.ConfigFormComponent); ok {
+		m.configForm = newForm
+	}
+	return m, cmd
 }
 
-// showConfigEditForm displays the config editing form
-func (m *Model) showConfigEditForm() (tea.Model, tea.Cmd) {
-	cfg := m.flow.Config
-	if cfg == nil {
-		cfg = &config.Config{
-			Target:        1,
-			StackSize:     512,
-			InitialMemory: 32,
-			MaximumMemory: 256,
-		}
-		m.flow.Config = cfg
-	}
-	
-	// Convert int values to strings for the form
-	targetStr := fmt.Sprintf("%d", cfg.Target)
-	stackSizeStr := fmt.Sprintf("%d", cfg.StackSize)
-	initialMemoryStr := fmt.Sprintf("%d", cfg.InitialMemory)
-	maximumMemoryStr := fmt.Sprintf("%d", cfg.MaximumMemory)
-	
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("WASM Target").
-				Value(&targetStr).
-				Description("Target configuration"),
-			
-			huh.NewInput().
-				Title("Stack Size (MB)").
-				Value(&stackSizeStr).
-				Description("Stack size in KB"),
-			
-			huh.NewInput().
-				Title("Initial Memory (MB)").
-				Value(&initialMemoryStr).
-				Description("Initial memory in MB"),
-			
-			huh.NewInput().
-				Title("Maximum Memory (MB)").
-				Value(&maximumMemoryStr).
-				Description("Maximum memory in MB"),
-		),
-	)
-	
-	err := form.Run()
-	if err != nil {
-		// If form fails, just proceed with current config
-		m.state = ViewBuildRunning
-		return m, m.startBuild()
-	}
-	
-	// Parse the string values back to integers
-	if target, err := strconv.Atoi(targetStr); err == nil {
-		cfg.Target = target
-	}
-	if stackSize, err := strconv.Atoi(stackSizeStr); err == nil {
-		cfg.StackSize = stackSize
-	}
-	if initialMemory, err := strconv.Atoi(initialMemoryStr); err == nil {
-		cfg.InitialMemory = initialMemory
-	}
-	if maximumMemory, err := strconv.Atoi(maximumMemoryStr); err == nil {
-		cfg.MaximumMemory = maximumMemory
-	}
-	
-	// Mark config as edited and start build
-	m.flow.ConfigEdited = true
-	m.state = ViewBuildRunning
-	return m, m.startBuild()
+func (m *Model) updateBuildRunning(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Only allow quit during build
+	return m, nil
 }
 
-// selectBuildType prompts user to select the build type
-func selectBuildType(flow *BuildFlow) error {
-	var buildType string
-
-	// Show the full layout container
-	fmt.Println() // Add some spacing
-	fmt.Println(createBuildTypeLayoutContainer())
-	fmt.Println()
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("").  // Remove title as it's now in the header
-				Description("").  // Remove description as it's now in the layout
-				Options(
-					huh.NewOption("AOS Flavour", "aos"),
-				).
-				Value(&buildType),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
+func (m *Model) updateBuildResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle exit
+	if key.Matches(msg, m.keyMap.Enter) {
+		return m, tea.Quit
 	}
-
-	flow.BuildType = buildType
-	return nil
+	
+	return m, nil
 }
 
-// createBuildTypeLayoutContainer creates the full layout with header, panels, and controls
-func createBuildTypeLayoutContainer() string {
-	// Header
-	header := createHeader("Select Build Configuration")
+func (m *Model) handleBack() (tea.Model, tea.Cmd) {
+	switch m.state {
+	case ViewEntrypointSelection:
+		m.state = ViewBuildTypeSelection
+	case ViewOutputDirectory:
+		m.state = ViewEntrypointSelection
+	case ViewConfigReview:
+		m.state = ViewOutputDirectory
+	case ViewConfigEditing:
+		m.state = ViewConfigReview
+	}
 	
-	// Left panel - selector
-	leftPanel := createSelectorPanel()
-	
-	// Right panel - description
-	rightPanel := createBuildTypeDescriptionPanel("aos")
-	
-	// Main content area (left + right panels)
-	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, "  ", rightPanel)
-	
-	// Bottom controls
-	bottomControls := createBottomControls()
-	
-	// Combine all sections vertically
-	fullLayout := lipgloss.JoinVertical(lipgloss.Left,
-		header,
-		"",  // Spacing
-		mainContent,
-		"",  // Spacing
-		bottomControls,
-	)
-	
-	// Wrap in main container
-	container := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
-		Padding(1, 2).
-		Width(90).
-		Render(fullLayout)
-	
-	return container
+	return m, nil
 }
 
-// createHeader creates the header section
-func createHeader(title string) string {
-	return lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#874BFD")).
-		Padding(0, 2).
-		Width(82).  // Adjust for container padding
-		Align(lipgloss.Center).
-		Render(title)
-}
-
-// createSelectorPanel creates the left selector panel
-func createSelectorPanel() string {
-	content := "Build Types:\n\n❯ AOS Flavour"
-	
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
-		Padding(1, 2).
-		Width(35).
-		Height(8).
-		Render(content)
-}
-
-// createBottomControls creates the bottom control panel
-func createBottomControls() string {
-	controls := "Controls: ↑/↓ Navigate • Enter Select • q Quit"
-	
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888")).
-		Background(lipgloss.Color("#222")).
-		Padding(0, 2).
-		Width(82).
-		Align(lipgloss.Center).
-		Render(controls)
-}
-
-// createBuildTypeDescriptionPanel creates a styled description panel for the given build type
-func createBuildTypeDescriptionPanel(buildType string) string {
-	var header, body string
-	
-	switch buildType {
-	case "aos":
-		header = "AOS Flavour"
-		body = "Builds a wasm binary with your Lua injected into the base AOS process"
-	default:
-		header = "Select a build type"
-		body = "Choose from the available options to see detailed information"
-	}
-	
-	// Create styled content
-	styledHeader := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
-		Render(header)
-	
-	// Create the content
-	content := fmt.Sprintf("%s\n\n%s", styledHeader, body)
-	
-	// Create a bordered panel that matches the selector panel
-	panel := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).  // Match selector border
-		Padding(1, 2).
-		Width(40).  // Adjust width to fit in container
-		Height(8).  // Match selector height
-		Render(content)
-	
-	return panel
-}
-
-// selectSubType prompts user to select the sub-type
-func selectSubType(flow *BuildFlow) error {
-	var subType string
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Select build configuration").
-				Description("Choose the build configuration for " + strings.ToUpper(flow.BuildType)).
-				Options(
-					huh.NewOption("Standard build", "standard"),
-				).
-				Value(&subType),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
-	}
-
-	flow.SubType = subType
-	return nil
-}
-
-// selectEntrypoint prompts user to select the entrypoint file
-func selectEntrypoint(flow *BuildFlow) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
-	}
-
-	// Find Lua files in current directory
-	luaFiles, err := findLuaFiles(cwd)
-	if err != nil {
-		return fmt.Errorf("failed to find Lua files: %w", err)
-	}
-
-	if len(luaFiles) == 0 {
-		return fmt.Errorf("no Lua files found in current directory")
-	}
-
-	var entrypoint string
-
-	// Create options from found Lua files
-	options := make([]huh.Option[string], 0, len(luaFiles))
-	for _, file := range luaFiles {
-		// Show relative path from current directory
-		relPath, _ := filepath.Rel(cwd, file)
-		options = append(options, huh.NewOption(relPath, file))
-	}
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Select entrypoint file").
-				Description("Choose the main Lua file for your project").
-				Options(options...).
-				Value(&entrypoint),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
-	}
-
-	flow.Entrypoint = entrypoint
-	return nil
-}
-
-// selectOutputDirectory prompts user to select the output directory
-func selectOutputDirectory(flow *BuildFlow) error {
-	var outputDir string
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Output directory").
-				Description("Enter the directory where build outputs will be saved").
-				Value(&outputDir).
-				Placeholder("./dist"),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
-	}
-
-	if outputDir == "" {
-		outputDir = "./dist"
-	}
-
-	flow.OutputDir = outputDir
-	return nil
-}
-
-// reviewAndEditConfig loads and allows editing of the .harlequin config
-func reviewAndEditConfig(flow *BuildFlow) error {
+// loadOrCreateConfig loads existing config or creates default
+func (m *Model) loadOrCreateConfig() *config.Config {
 	// Try to load existing config
 	configPath := ".harlequin.yaml"
-	var cfg *config.Config
-
 	if _, err := os.Stat(configPath); err == nil {
-		cfg = config.ReadConfigFile(configPath)
-		fmt.Println(infoStyle.Render("📄 Loaded existing .harlequin.yaml"))
-	} else {
-		cfg = config.NewConfig(nil)
-		fmt.Println(infoStyle.Render("🆕 Using default configuration (no .harlequin.yaml found)"))
+		if cfg := config.ReadConfigFile(configPath); cfg != nil {
+			return cfg
+		}
 	}
-
-	flow.Config = cfg
-
-	// Show current config and ask if user wants to edit
-	var action string
-
-	currentConfig := fmt.Sprintf(`Current configuration:
-  AOS Git Hash: %s
-  Compute Limit: %s
-  Module Format: %s
-  Target: %d
-  Stack Size: %d
-  Initial Memory: %d
-  Maximum Memory: %d`,
-		cfg.AOSGitHash,
-		cfg.ComputeLimit,
-		cfg.ModuleFormat,
-		cfg.Target,
-		cfg.StackSize,
-		cfg.InitialMemory,
-		cfg.MaximumMemory)
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewNote().
-				Title("Configuration Review").
-				Description(currentConfig),
-
-			huh.NewSelect[string]().
-				Title("What would you like to do?").
-				Options(
-					huh.NewOption("Use current configuration", "use"),
-					huh.NewOption("Edit configuration", "edit"),
-				).
-				Value(&action),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
+	
+	// Try build config
+	buildConfigPath := filepath.Join("build_configs", "ao-build-config.yml")
+	if _, err := os.Stat(buildConfigPath); err == nil {
+		if cfg := config.ReadConfigFile(buildConfigPath); cfg != nil {
+			return cfg
+		}
 	}
-
-	if action == "edit" {
-		return editConfig(flow)
-	}
-
-	return nil
+	
+	// Create default config
+	return config.NewConfig(nil)
 }
 
-// editConfig allows user to edit configuration fields
-func editConfig(flow *BuildFlow) error {
-	cfg := flow.Config
-
-	// Convert int fields to strings for editing
-	targetStr := fmt.Sprintf("%d", cfg.Target)
-	stackSizeStr := fmt.Sprintf("%d", cfg.StackSize)
-	initialMemoryStr := fmt.Sprintf("%d", cfg.InitialMemory)
-	maxMemoryStr := fmt.Sprintf("%d", cfg.MaximumMemory)
-
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("AOS Git Hash").
-				Description("Git commit hash or branch name for AOS").
-				Value(&cfg.AOSGitHash),
-
-			huh.NewInput().
-				Title("Compute Limit").
-				Description("Maximum compute units for the module").
-				Value(&cfg.ComputeLimit),
-
-			huh.NewInput().
-				Title("Module Format").
-				Description("Target format for the compiled module").
-				Value(&cfg.ModuleFormat),
-		),
-
-		huh.NewGroup(
-			huh.NewInput().
-				Title("WASM Target Architecture").
-				Description("Target architecture (32 or 64)").
-				Value(&targetStr),
-
-			huh.NewInput().
-				Title("Stack Size (MB)").
-				Description("Stack size in bytes").
-				Value(&stackSizeStr),
-
-			huh.NewInput().
-				Title("Initial Memory (MB)").
-				Description("Initial memory size in bytes").
-				Value(&initialMemoryStr),
-
-			huh.NewInput().
-				Title("Maximum Memory (MB)").
-				Description("Maximum memory size in bytes").
-				Value(&maxMemoryStr),
-		),
-	)
-
-	if err := form.Run(); err != nil {
-		return err
-	}
-
-	// Convert string values back to integers
-	if target, err := parseInt(targetStr, "WASM Target"); err != nil {
-		return err
-	} else {
-		cfg.Target = target
-	}
-
-	if stackSize, err := parseInt(stackSizeStr, "Stack Size (MB)"); err != nil {
-		return err
-	} else {
-		cfg.StackSize = stackSize
-	}
-
-	if initialMemory, err := parseInt(initialMemoryStr, "Initial Memory (MB)"); err != nil {
-		return err
-	} else {
-		cfg.InitialMemory = initialMemory
-	}
-
-	if maxMemory, err := parseInt(maxMemoryStr, "Maximum Memory (MB)"); err != nil {
-		return err
-	} else {
-		cfg.MaximumMemory = maxMemory
-	}
-
-	flow.ConfigEdited = true
-	return nil
-}
-
-// executeBuild runs the actual build process
-func executeBuild(ctx context.Context, flow *BuildFlow) error {
-	fmt.Println()
-	fmt.Println(titleStyle.Render("🚀 Starting Build"))
-	fmt.Println()
-
-	// Create AOSBuilder with the selected parameters
-	builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
-		Config:         flow.Config,
-		ConfigFilePath: nil, // Use default .harlequin.yaml
-		Entrypoint:     flow.Entrypoint,
-		OutputDir:      flow.OutputDir,
-		Callbacks:      builders.CallbacksProgress, // Use progress callbacks for nice output
-	})
-
-	// Run the build
-	if err := builder.Build(ctx); err != nil {
-		fmt.Println()
-		fmt.Println(errorStyle.Render("❌ Build failed: " + err.Error()))
-		return err
-	}
-
-	fmt.Println()
-	fmt.Println(titleStyle.Render("✅ Build completed successfully!"))
-	fmt.Printf("📁 Output directory: %s\n", flow.OutputDir)
-
-	return nil
-}
-
-// findLuaFiles recursively finds all .lua files in the given directory
-func findLuaFiles(dir string) ([]string, error) {
-	var luaFiles []string
-
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip hidden directories and files
-		if strings.HasPrefix(info.Name(), ".") {
-			if info.IsDir() {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		// Skip common directories that shouldn't contain entrypoint files
-		if info.IsDir() {
-			switch info.Name() {
-			case "node_modules", ".git", "dist", "build", "target":
-				return filepath.SkipDir
-			}
-		}
-
-		// Add Lua files
-		if !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".lua") {
-			luaFiles = append(luaFiles, path)
-		}
-
-		return nil
-	})
-
-	return luaFiles, err
-}
-
-// parseInt converts a string to an integer with error handling
-func parseInt(s, fieldName string) (int, error) {
-	val, err := strconv.Atoi(s)
+// saveConfigFromForm saves the configuration from the form
+func (m *Model) saveConfigFromForm() error {
+	target, stackSize, initialMemory, maxMemory, err := m.configForm.GetFieldValues()
 	if err != nil {
-		return 0, fmt.Errorf("invalid value for %s: %s", fieldName, s)
+		return err
 	}
-	return val, nil
+	
+	// Update config
+	m.flow.Config.Target = target
+	m.flow.Config.StackSize = stackSize
+	m.flow.Config.InitialMemory = initialMemory
+	m.flow.Config.MaximumMemory = maxMemory
+	m.flow.ConfigEdited = true
+	
+	return nil
 }
 
-// logBuildResult logs the build result to console after TUI exits
-func logBuildResult(result *BuildResult) {
-	fmt.Println() // Add some space after TUI
+// startBuild initiates the build process
+func (m *Model) startBuild() (tea.Model, tea.Cmd) {
+	m.state = ViewBuildRunning
 	
-	if result.Success {
-		// Success logging
-		fmt.Printf("✅ Build Successful!\n")
-		fmt.Printf("📋 Build Configuration:\n")
-		fmt.Printf("   Entrypoint: %s\n", result.Flow.Entrypoint)
-		fmt.Printf("   Output Dir: %s\n", result.Flow.OutputDir)
-		fmt.Printf("   Build Type: %s (%s)\n", result.Flow.BuildType, result.Flow.SubType)
-		if result.Flow.Config != nil {
-			fmt.Printf("   Target: WASM %d-bit\n", result.Flow.Config.Target)
-			fmt.Printf("   Memory: %.1f MB stack, %.1f MB initial, %.1f MB max\n", 
-				float64(result.Flow.Config.StackSize)/1024/1024,
-				float64(result.Flow.Config.InitialMemory)/1024/1024,
-				float64(result.Flow.Config.MaximumMemory)/1024/1024)
-			fmt.Printf("   AOS Hash: %s\n", result.Flow.Config.AOSGitHash)
-		}
-		fmt.Printf("📁 Output available at: %s\n", result.Flow.OutputDir)
-		fmt.Printf("📄 Build logs: %s\n", debug.LogFilePath)
+	// Start the build in a goroutine
+	return m, func() tea.Msg {
+		go m.runBuild()
+		return nil
+	}
+}
+
+// runBuild executes the actual build process
+func (m *Model) runBuild() {
+	debug.Printf("Starting build process")
+	debug.Printf("Build config: %+v", m.flow)
+	
+	var buildErr error
+	success := true
+	
+	// Execute the build using AOSBuilder directly
+	buildErr = m.executeRealBuild()
+	if buildErr != nil {
+		debug.Printf("Build failed: %v", buildErr)
+		success = false
 	} else {
-		// Failure logging
-		fmt.Printf("❌ Build Failed!\n")
-		fmt.Printf("📋 Build Configuration:\n")
-		fmt.Printf("   Entrypoint: %s\n", result.Flow.Entrypoint)
-		fmt.Printf("   Output Dir: %s\n", result.Flow.OutputDir)
-		fmt.Printf("   Build Type: %s (%s)\n", result.Flow.BuildType, result.Flow.SubType)
-		if result.Flow.Config != nil {
-			fmt.Printf("   Target: WASM %d-bit\n", result.Flow.Config.Target)
-			fmt.Printf("   Memory: %.1f MB stack, %.1f MB initial, %.1f MB max\n", 
-				float64(result.Flow.Config.StackSize)/1024/1024,
-				float64(result.Flow.Config.InitialMemory)/1024/1024,
-				float64(result.Flow.Config.MaximumMemory)/1024/1024)
-			fmt.Printf("   AOS Hash: %s\n", result.Flow.Config.AOSGitHash)
-		}
-		fmt.Printf("🔥 Error: %v\n", result.Error)
-		fmt.Printf("📄 Detailed logs: %s\n", debug.LogFilePath)
+		debug.Printf("Build completed successfully")
 	}
 	
-	fmt.Println() // Add some space after logging
+	// Send final result
+	result := &BuildResult{
+		Success: success,
+		Error:   buildErr,
+		Flow:    m.flow,
+	}
+	
+	if m.program != nil {
+		m.program.Send(BuildCompleteMsg{Result: result})
+	}
+}
+
+// executeRealBuild runs the actual build process with progress updates
+func (m *Model) executeRealBuild() error {
+	debug.Printf("Executing real build for entrypoint: %s", m.flow.Entrypoint)
+	
+	// Debug: Print build configuration
+	debug.Printf("Build configuration:")
+	debug.Printf("  Entrypoint: %s", m.flow.Entrypoint)
+	debug.Printf("  OutputDir: %s", m.flow.OutputDir)
+	debug.Printf("  Config: %+v", m.flow.Config)
+	
+	// Create AOSBuilder and execute the complete build process
+	builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
+		Config:     m.flow.Config,
+		Entrypoint: m.flow.Entrypoint,
+		OutputDir:  m.flow.OutputDir,
+		Callbacks:  builders.NoOpCallbacks(), // Silent for now
+	})
+	debug.Printf("AOSBuilder created successfully")
+	
+	// Define build steps to match the progress component expectations
+	steps := []struct {
+		name string
+		fn   func() error
+	}{
+		{"Copy AOS Files", func() error {
+			debug.Printf("Step: Copy AOS Files")
+			return nil // This will be handled by the full build
+		}},
+		{"Bundle Lua", func() error {
+			debug.Printf("Step: Bundle Lua")
+			return nil // This will be handled by the full build
+		}},
+		{"Inject Code", func() error {
+			debug.Printf("Step: Inject Code")
+			return nil // This will be handled by the full build
+		}},
+		{"Build WASM", func() error {
+			debug.Printf("Step: Build WASM - executing full build process")
+			err := builder.Build(m.ctx)
+			if err != nil {
+				debug.Printf("AOSBuilder.Build() failed: %v", err)
+			} else {
+				debug.Printf("AOSBuilder.Build() completed successfully")
+			}
+			return err
+		}},
+		{"Copy Outputs", func() error {
+			debug.Printf("Step: Copy Outputs")
+			return nil // This was handled by the build
+		}},
+		{"Cleanup", func() error {
+			debug.Printf("Step: Cleanup")
+			return nil // This was handled by the build
+		}},
+	}
+	
+	// Execute each step with progress updates
+	for _, step := range steps {
+		// Send step start message
+		if m.program != nil {
+			m.program.Send(BuildStepStartMsg{StepName: step.name})
+		}
+		
+		// Execute the step
+		err := step.fn()
+		
+		// Send step completion message
+		if m.program != nil {
+			m.program.Send(BuildStepCompleteMsg{StepName: step.name, Success: err == nil})
+		}
+		
+		// If step failed, return the error
+		if err != nil {
+			return fmt.Errorf("step '%s' failed: %w", step.name, err)
+		}
+		
+		// Small delay for visual feedback
+		time.Sleep(200 * time.Millisecond)
+	}
+	
+	return nil
+}
+
+// RunBuildTUI starts the modernized interactive build TUI
+func RunBuildTUI(ctx context.Context) error {
+	m := NewModel(ctx)
+	
+	// Start the Bubble Tea program
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	m.program = p // Store reference for sending messages
+	
+	_, err := p.Run()
+	return err
 }

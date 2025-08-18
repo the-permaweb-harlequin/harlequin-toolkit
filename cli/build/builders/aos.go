@@ -328,18 +328,23 @@ func CopyAOSProcess(ctx context.Context, options *AOSCopyOptions) error {
 		return fmt.Errorf("failed to remove existing directory: %w", err)
 	}
 
-	// Step 2: Clone the repository into a temporary directory
-	debug.Printf("Cloning repository: %s\n", options.RepoURL)
-	cloneCmd := exec.CommandContext(ctx, "git", "clone", options.RepoURL, options.TempRepoDir)
-	if err := cloneCmd.Run(); err != nil {
-		return fmt.Errorf("failed to clone repository: %w", err)
+	// Step 2: Clean up any existing temp directory and clone the repository
+	debug.Printf("Removing any existing temp directory: %s\n", options.TempRepoDir)
+	if err := os.RemoveAll(options.TempRepoDir); err != nil {
+		debug.Printf("Warning: failed to remove existing temp directory: %v\n", err)
 	}
-
+	
 	// Cleanup temp repo on exit
 	defer func() {
 		debug.Printf("Removing temporary directory: %s\n", options.TempRepoDir)
 		_ = os.RemoveAll(options.TempRepoDir)
 	}()
+	
+	debug.Printf("Cloning repository: %s\n", options.RepoURL)
+	cloneCmd := exec.CommandContext(ctx, "git", "clone", options.RepoURL, options.TempRepoDir)
+	if err := cloneCmd.Run(); err != nil {
+		return fmt.Errorf("failed to clone repository: %w", err)
+	}
 
 	// Step 3: Checkout the specific commit hash
 	debug.Printf("Checking out commit: %s\n", options.CommitHash)
