@@ -1,0 +1,86 @@
+{
+  "name": "cli",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "cli",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "commands": [
+          "go build -ldflags=\"-s -w\" -o ../dist/cli/harlequin ."
+        ]
+      },
+      "configurations": {
+        "production": {
+          "commands": [
+            "goreleaser build --clean --snapshot --single-target"
+          ]
+        }
+      }
+    },
+    "release": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "commands": [
+          "goreleaser release --clean --config cli/.goreleaser.yaml"
+        ]
+      },
+      "configurations": {
+        "snapshot": {
+          "commands": [
+            "goreleaser release --clean --snapshot --config cli/.goreleaser.yaml"
+          ]
+        },
+        "dry-run": {
+          "commands": [
+            "goreleaser release --clean --skip=publish --config cli/.goreleaser.yaml"
+          ]
+        }
+      }
+    },
+    "goreleaser-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "command": "goreleaser check --config cli/.goreleaser.yaml"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "command": "go test ./..."
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "commands": [
+          "go fmt ./...",
+          "go vet ./..."
+        ]
+      }
+    },
+    "tidy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "command": "go mod tidy"
+      }
+    },
+    "setup": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "commands": [
+          "go install github.com/goreleaser/goreleaser@latest"
+        ]
+      }
+    }
+  },
+  "tags": ["type:application", "lang:go"]
+}

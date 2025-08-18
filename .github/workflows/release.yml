@@ -1,0 +1,234 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'cli-v*'
+      - 'sdk-v*'
+      - 'app-v*'
+      - 'server-v*'
+
+env:
+  NX_CLOUD_DISTRIBUTED_EXECUTION: false
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      cli: ${{ steps.changes.outputs.cli }}
+      sdk: ${{ steps.changes.outputs.sdk }}
+      app: ${{ steps.changes.outputs.app }}
+      server: ${{ steps.changes.outputs.server }}
+      tag_type: ${{ steps.tag-info.outputs.type }}
+      version: ${{ steps.tag-info.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get tag info
+        id: tag-info
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          
+          if [[ $TAG == cli-v* ]]; then
+            echo "type=cli" >> $GITHUB_OUTPUT
+            echo "version=${TAG#cli-v}" >> $GITHUB_OUTPUT
+          elif [[ $TAG == sdk-v* ]]; then
+            echo "type=sdk" >> $GITHUB_OUTPUT
+            echo "version=${TAG#sdk-v}" >> $GITHUB_OUTPUT
+          elif [[ $TAG == app-v* ]]; then
+            echo "type=app" >> $GITHUB_OUTPUT
+            echo "version=${TAG#app-v}" >> $GITHUB_OUTPUT
+          elif [[ $TAG == server-v* ]]; then
+            echo "type=server" >> $GITHUB_OUTPUT
+            echo "version=${TAG#server-v}" >> $GITHUB_OUTPUT
+          else
+            echo "type=all" >> $GITHUB_OUTPUT
+            echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if [[ "${{ steps.tag-info.outputs.type }}" == "all" ]]; then
+            echo "cli=true" >> $GITHUB_OUTPUT
+            echo "sdk=true" >> $GITHUB_OUTPUT
+            echo "app=true" >> $GITHUB_OUTPUT
+            echo "server=true" >> $GITHUB_OUTPUT
+          else
+            echo "cli=${{ steps.tag-info.outputs.type == 'cli' }}" >> $GITHUB_OUTPUT
+            echo "sdk=${{ steps.tag-info.outputs.type == 'sdk' }}" >> $GITHUB_OUTPUT
+            echo "app=${{ steps.tag-info.outputs.type == 'app' }}" >> $GITHUB_OUTPUT
+            echo "server=${{ steps.tag-info.outputs.type == 'server' }}" >> $GITHUB_OUTPUT
+          fi
+
+  release-cli:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21.x'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          install-only: true
+
+      - name: Validate GoReleaser config
+        run: npx nx goreleaser-check cli
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean -f cli/.goreleaser.yaml
+          workdir: ./
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DAEMONGATE_API_KEY: ${{ secrets.DAEMONGATE_API_KEY }}
+
+      - name: Test installation script
+        run: |
+          echo "Testing installation script with new release..."
+          # Test that the install script can detect the new version
+          curl -fsSL https://install_cli_harlequin.daemongate.io | DRYRUN=true sh
+
+  release-sdk:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.sdk == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build SDK
+        run: npx nx build sdk
+
+      - name: Update SDK version
+        run: |
+          cd dist/sdk
+          npm version ${{ needs.detect-changes.outputs.version }} --no-git-tag-version
+
+      - name: Publish to npm
+        run: |
+          cd dist/sdk
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  release-app:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build App
+        run: npx nx build app --configuration=production
+
+      - name: Deploy App
+        run: |
+          echo "Deploying app..."
+          # Add your deployment logic here (Vercel, Netlify, etc.)
+
+  release-server:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Server
+        run: npx nx build server
+
+      - name: Build Docker image
+        run: |
+          docker build -t harlequin-server:${{ needs.detect-changes.outputs.version }} .
+          
+      - name: Deploy Server
+        run: |
+          echo "Deploying server..."
+          # Add your deployment logic here
+
+  update-install-script:
+    needs: [detect-changes, release-cli]
+    if: needs.detect-changes.outputs.cli == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update releases API
+        run: |
+          echo "Updating releases API with new version..."
+          # This would update your /releases endpoint
+          curl -X POST "https://install_cli_harlequin.daemongate.io/api/releases" \
+            -H "Authorization: Bearer ${{ secrets.DAEMONGATE_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "tag_name": "v${{ needs.detect-changes.outputs.version }}",
+              "version": "${{ needs.detect-changes.outputs.version }}",
+              "assets": [
+                {"name": "harlequin-linux-amd64", "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases/download/${{ github.ref_name }}/harlequin-linux-amd64"},
+                {"name": "harlequin-linux-arm64", "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases/download/${{ github.ref_name }}/harlequin-linux-arm64"},
+                {"name": "harlequin-darwin-amd64", "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases/download/${{ github.ref_name }}/harlequin-darwin-amd64"},
+                {"name": "harlequin-darwin-arm64", "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases/download/${{ github.ref_name }}/harlequin-darwin-arm64"},
+                {"name": "harlequin-windows-amd64.exe", "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases/download/${{ github.ref_name }}/harlequin-windows-amd64.exe"}
+              ]
+            }'

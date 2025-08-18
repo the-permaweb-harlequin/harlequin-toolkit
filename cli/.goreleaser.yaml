@@ -1,0 +1,143 @@
+project_name: harlequin
+
+# Note: For monorepo support, run from root with:
+# goreleaser release --config cli/.goreleaser.yaml
+
+# Environment variables
+env:
+  - CGO_ENABLED=0
+
+# Build configuration
+builds:
+  - id: harlequin
+    main: ./cli/main.go
+    binary: harlequin
+    
+    # Build for multiple platforms
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    
+    # All combinations are supported
+    # Windows 11 runs on ARM64 (Surface Pro X, etc.)
+    
+    # Build flags
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+    
+    # Custom binary naming
+    hooks:
+      pre:
+        - cd cli && go mod tidy
+        - cd cli && go generate ./...
+
+# Archive configuration
+archives:
+  - id: harlequin
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - cli/README.md
+      - LICENSE*
+
+# Checksum
+checksum:
+  name_template: 'checksums.txt'
+
+# Snapshot
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+# Changelog
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Others
+      order: 999
+
+# GitHub Release
+release:
+  github:
+    owner: the-permaweb-harlequin
+    name: harlequin-toolkit
+  
+  # Release name
+  name_template: "Harlequin CLI v{{.Version}}"
+  
+  # Release notes
+  header: |
+    ## Harlequin CLI Release {{.Version}}
+    
+    ### Installation
+    
+    ```bash
+    # Quick install (latest)
+    curl -fsSL https://install_cli_harlequin.daemongate.io | sh
+    
+    # Specific version
+    curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION={{.Version}} sh
+    
+    # Dry run
+    curl -fsSL https://install_cli_harlequin.daemongate.io | sh -s -- --dryrun
+    ```
+    
+    ### Platform Downloads
+    
+    Choose the appropriate binary for your platform below.
+  
+  footer: |
+    ## Verification
+    
+    All binaries are signed and can be verified using the provided checksums.
+    
+    ```bash
+    # Verify checksum (example for Linux AMD64)
+    sha256sum harlequin_{{.Version}}_linux_amd64.tar.gz
+    ```
+    
+    **Full Changelog**: https://github.com/the-permaweb-harlequin/harlequin-toolkit/compare/{{.PreviousTag}}...{{.Tag}}
+
+# Custom publishers for Arweave
+publishers:
+  - name: arweave-deployment
+    env:
+      - ARWEAVE_WALLET_JWK
+      - ARNS_NAME
+    cmd: |
+      echo "🎭 Deploying Harlequin CLI to Arweave..."
+      
+      # Copy install script to dist for deployment
+      cp cli/scripts/install_cli.sh dist/ || echo "Install script not found"
+      
+      # Deploy to Arweave
+      cd cli/scripts
+      yarn --silent
+      CLI_VERSION="{{ .Version }}" yarn deploy
+      
+      echo "✅ Arweave deployment completed!"
