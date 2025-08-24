@@ -204,12 +204,9 @@ function findBinaries(): string[] {
       const fileName = basename(file);
       const ext = extname(file);
       
-      // Include archives and executable binaries
-      return ext === '.tar.gz' || 
-             ext === '.zip' || 
-             fileName === 'harlequin' || 
-             fileName === 'harlequin.exe' ||
-             fileName.includes('harlequin');
+      // Only include individual executable binaries, not archives
+      return (fileName === 'harlequin' || fileName === 'harlequin.exe') &&
+             (ext === '' || ext === '.exe');
     });
     
     spinner.succeed(`Found ${binaries.length} binary files`);
