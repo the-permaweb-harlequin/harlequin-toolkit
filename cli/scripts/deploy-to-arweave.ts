@@ -358,7 +358,7 @@ async function createManifest(turboClient: TurboAuthenticatedClient, uploads: {u
 
     
     // Add releases API to manifest
-    manifest.paths['/releases/'] = {
+    manifest.paths['releases'] = {
       id: releasesDataRes.id
     };
     
