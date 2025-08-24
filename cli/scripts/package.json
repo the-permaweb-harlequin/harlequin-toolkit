@@ -26,5 +26,8 @@
     "@types/mime-types": "^2.1.4",
     "@types/node": "^20.10.0",
     "typescript": "^5.3.0"
+  },
+  "resolutions": {
+    "@permaweb/aoconnect": "0.0.59"
   }
 }
