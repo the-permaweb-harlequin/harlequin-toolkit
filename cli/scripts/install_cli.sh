@@ -5,7 +5,7 @@ set -e
 # Configuration
 BINARY_NAME="harlequin"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-BASE_URL="${BASE_URL:-https://install_cli_harlequin.daemongate.io}"
+BASE_URL="${BASE_URL:-https://install_cli_harlequin.arweave.net}"
 VERSION="${VERSION:-latest}"
 FORCE="${FORCE:-false}"
 DRYRUN="${DRYRUN:-false}"
@@ -29,6 +29,10 @@ for arg in "$@"; do
             INSTALL_DIR="${arg#*=}"
             shift
             ;;
+        --debug)
+            DEBUG="true"
+            shift
+            ;;
         --help|-h)
             echo "Harlequin CLI Installer"
             echo ""
@@ -39,6 +43,7 @@ for arg in "$@"; do
             echo "  --force                Force reinstall even if already installed"
             echo "  --version=VERSION      Install specific version (default: latest)"
             echo "  --install-dir=DIR      Install to custom directory (default: /usr/local/bin)"
+            echo "  --debug                Enable debug mode with detailed diagnostics"
             echo "  --help, -h             Show this help message"
             echo ""
             echo "Environment variables:"
@@ -49,16 +54,16 @@ for arg in "$@"; do
             echo ""
             echo "Examples:"
             echo "  # Latest stable version"
-            echo "  curl -fsSL https://install_cli_harlequin.daemongate.io | sh"
+            echo "  curl -fsSL https://install_cli_harlequin.arweave.net | sh"
             echo "  "
             echo "  # Specific stable version"
-            echo "  curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION=1.2.3 sh"
+            echo "  curl -fsSL https://install_cli_harlequin.arweave.net | VERSION=1.2.3 sh"
             echo "  "
             echo "  # Alpha version (bleeding edge)"
-            echo "  curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION=1.2.3-alpha.1 sh"
+            echo "  curl -fsSL https://install_cli_harlequin.arweave.net | VERSION=1.2.3-alpha.1 sh"
             echo "  "
             echo "  # Dry run"
-            echo "  curl -fsSL https://install_cli_harlequin.daemongate.io | DRYRUN=true sh"
+            echo "  curl -fsSL https://install_cli_harlequin.arweave.net | DRYRUN=true sh"
             exit 0
             ;;
         *)
@@ -72,6 +77,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Helper functions
@@ -103,6 +109,73 @@ dryrun_info() {
     if [ "$DRYRUN" = "true" ]; then
         echo -e "${YELLOW}[DRYRUN]${NC} $1"
     fi
+}
+
+debug() {
+    if [ "$DEBUG" = "true" ]; then
+        echo -e "${CYAN}[DEBUG]${NC} $1"
+    fi
+}
+
+# Debug diagnostics function
+run_diagnostics() {
+    if [ "$DEBUG" != "true" ]; then
+        return
+    fi
+    
+    echo
+    info "🔍 Running diagnostics..."
+    
+    debug "Base URL: $BASE_URL"
+    debug "Version: $VERSION"
+    debug "Platform: $PLATFORM"
+    debug "Architecture: $ARCH"
+    debug "Binary URL: $BINARY_URL"
+    debug "Install directory: $INSTALL_DIR"
+    
+    debug "Testing network connectivity:"
+    if command -v ping >/dev/null 2>&1; then
+        if ping -c 1 arweave.net >/dev/null 2>&1; then
+            debug "✅ Can reach arweave.net"
+        else
+            debug "❌ Cannot reach arweave.net"
+        fi
+    fi
+    
+    debug "Testing URL availability:"
+    for test_url in "$BASE_URL" "${BASE_URL}/releases"; do
+        debug "Testing: $test_url"
+        
+        if command -v curl >/dev/null 2>&1; then
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 "$test_url" 2>/dev/null || echo "000")
+            debug "HTTP response: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+                debug "✅ $test_url is accessible"
+            else
+                debug "❌ $test_url returned HTTP $HTTP_CODE"
+            fi
+        fi
+    done
+    
+    debug "Testing binary URL:"
+    if command -v curl >/dev/null 2>&1; then
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 -I "$BINARY_URL" 2>/dev/null || echo "000")
+        CONTENT_TYPE=$(curl -s -o /dev/null -w "%{content_type}" --connect-timeout 10 -I "$BINARY_URL" 2>/dev/null || echo "unknown")
+        CONTENT_LENGTH=$(curl -s -o /dev/null -w "%{size_download}" --connect-timeout 10 -I "$BINARY_URL" 2>/dev/null || echo "0")
+        
+        debug "Binary URL HTTP code: $HTTP_CODE"
+        debug "Binary URL content type: $CONTENT_TYPE"
+        debug "Binary URL content length: $CONTENT_LENGTH bytes"
+        
+        if [ "$HTTP_CODE" = "200" ]; then
+            debug "✅ Binary URL is accessible"
+        else
+            debug "❌ Binary URL returned HTTP $HTTP_CODE"
+        fi
+    fi
+    
+    echo
 }
 
 # Check if jq is available for JSON parsing
@@ -283,6 +356,9 @@ fi
 info "Installing harlequin CLI v${VERSION} for ${PLATFORM}/${ARCH}..."
 info "Download URL: ${BINARY_URL}"
 
+# Run diagnostics if debug mode is enabled
+run_diagnostics
+
 # Check if required tools are available
 if ! command -v curl >/dev/null 2>&1; then
     error "curl is required but not installed. Please install curl and try again."
@@ -308,32 +384,85 @@ else
     TEMP_FILE=$(mktemp)
     trap 'rm -f "$TEMP_COMPRESSED" "$TEMP_FILE"' EXIT
 
-    # Download compressed binary
-    if ! curl -fsSL "$BINARY_URL" -o "$TEMP_COMPRESSED"; then
-        error "Failed to download compressed binary from $BINARY_URL"
+    # Test connectivity first
+    info "Testing connection to download server..."
+    if ! curl -fsSL --connect-timeout 10 --max-time 30 "${BASE_URL}/releases" -o /dev/null 2>/dev/null; then
+        warn "Connection test failed, but proceeding with download attempt..."
+    else
+        info "✅ Connection test successful"
     fi
 
-    # Verify download
-    if [ ! -s "$TEMP_COMPRESSED" ]; then
-        error "Downloaded file is empty or corrupted"
+    # Download compressed binary with progress bar and detailed logging
+    info "📥 Starting download from: $BINARY_URL"
+    
+    # Use curl with progress bar and better error handling
+    if command -v curl >/dev/null 2>&1; then
+        # Try with progress bar first
+        if ! curl --fail --location --show-error \
+            --connect-timeout 30 \
+            --max-time 300 \
+            --retry 3 \
+            --retry-delay 2 \
+            --progress-bar \
+            --output "$TEMP_COMPRESSED" \
+            "$BINARY_URL" 2>&1; then
+            
+            warn "❌ Download with progress bar failed, trying silent mode..."
+            
+            # Fallback to silent mode with verbose error reporting
+            if ! curl --fail --location --show-error --silent \
+                --connect-timeout 30 \
+                --max-time 300 \
+                --retry 3 \
+                --retry-delay 2 \
+                --output "$TEMP_COMPRESSED" \
+                --write-out "HTTP Status: %{http_code}\nDownload Size: %{size_download} bytes\nTime: %{time_total}s\nSpeed: %{speed_download} bytes/s\n" \
+                "$BINARY_URL"; then
+                
+                error "❌ Failed to download compressed binary from $BINARY_URL"
+            fi
+        fi
+    else
+        error "curl command not found"
     fi
+
+    # Verify download with detailed info
+    if [ ! -f "$TEMP_COMPRESSED" ]; then
+        error "❌ Downloaded file does not exist: $TEMP_COMPRESSED"
+    fi
+    
+    DOWNLOAD_SIZE=$(wc -c < "$TEMP_COMPRESSED" 2>/dev/null || echo "0")
+    if [ "$DOWNLOAD_SIZE" -eq 0 ]; then
+        error "❌ Downloaded file is empty (0 bytes)"
+    fi
+    
+    info "✅ Download successful (${DOWNLOAD_SIZE} bytes)"
 
     # Decompress the binary
-    info "Decompressing binary..."
-    if ! gzip -dc "$TEMP_COMPRESSED" > "$TEMP_FILE"; then
-        error "Failed to decompress binary. File may be corrupted."
+    info "🗜️  Decompressing binary..."
+    
+    # Test if file is actually gzipped
+    if ! gzip -t "$TEMP_COMPRESSED" 2>/dev/null; then
+        error "❌ Downloaded file is not a valid gzip archive. Server may have returned an error page."
+    fi
+    
+    if ! gzip -dc "$TEMP_COMPRESSED" > "$TEMP_FILE" 2>/dev/null; then
+        error "❌ Failed to decompress binary. File may be corrupted."
     fi
 
-    # Verify decompressed file
-    if [ ! -s "$TEMP_FILE" ]; then
-        error "Decompressed file is empty or corrupted"
+    # Verify decompressed file with detailed info
+    if [ ! -f "$TEMP_FILE" ]; then
+        error "❌ Decompressed file does not exist"
     fi
-
+    
+    DECOMPRESSED_SIZE=$(wc -c < "$TEMP_FILE" 2>/dev/null || echo "0")
+    if [ "$DECOMPRESSED_SIZE" -eq 0 ]; then
+        error "❌ Decompressed file is empty (0 bytes)"
+    fi
+    
     # Show compression stats
-    COMPRESSED_SIZE=$(wc -c < "$TEMP_COMPRESSED")
-    DECOMPRESSED_SIZE=$(wc -c < "$TEMP_FILE")
-    COMPRESSION_RATIO=$(( (COMPRESSED_SIZE * 100) / DECOMPRESSED_SIZE ))
-    info "Downloaded: $(( COMPRESSED_SIZE / 1024 ))KB compressed → $(( DECOMPRESSED_SIZE / 1024 ))KB decompressed (${COMPRESSION_RATIO}% of original)"
+    COMPRESSION_RATIO=$(( (DOWNLOAD_SIZE * 100) / DECOMPRESSED_SIZE ))
+    info "📊 Downloaded: $(( DOWNLOAD_SIZE / 1024 ))KB compressed → $(( DECOMPRESSED_SIZE / 1024 ))KB decompressed (${COMPRESSION_RATIO}% of original)"
 fi
 
 # Check if we need sudo for installation
@@ -429,7 +558,7 @@ info "  harlequin build ./my-project       # Legacy CLI mode"
 echo
 if [ "$DRYRUN" != "true" ]; then
     info "To upgrade in the future, simply run the install script again!"
-    info "To force reinstall: curl -fsSL https://install_cli_harlequin.daemongate.io | FORCE=true sh"
+    info "To force reinstall: curl -fsSL https://install_cli_harlequin.arweave.net | FORCE=true sh"
 fi
-info "To simulate installation: curl -fsSL https://install_cli_harlequin.daemongate.io | sh -s -- --dryrun"
+info "To simulate installation: curl -fsSL https://install_cli_harlequin.arweave.net | sh -s -- --dryrun"
 
