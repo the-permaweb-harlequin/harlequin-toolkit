@@ -223,14 +223,14 @@ function findBinaries(): string[] {
  */
 function parsePlatformArch(filename: string): PlatformArch {
   const patterns = [
-    // Archive format: harlequin_1.2.3_linux_amd64.tar.gz
-    /harlequin_[\d.]+_([^_]+)_([^.]+)/,
-    // Binary format: harlequin-linux-amd64
-    /harlequin-([^-]+)-([^.-]+)/,
-    // GoReleaser directory format: harlequin_darwin_amd64_v1/harlequin
-    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin/,
     // GoReleaser directory format (windows): harlequin_windows_amd64_v1/harlequin.exe
-    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin\.exe/
+    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin\.exe$/,
+    // GoReleaser directory format: harlequin_darwin_amd64_v1/harlequin
+    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin$/,
+    // Archive format: harlequin_1.2.3_linux_amd64.tar.gz
+    /harlequin_[\d.-]+_([^_]+)_([^.]+)\.tar\.gz$/,
+    // Binary format: harlequin-linux-amd64
+    /harlequin-([^-]+)-([^.-]+)$/
   ];
   
   for (const pattern of patterns) {
@@ -270,7 +270,13 @@ async function createManifest(turboClient: TurboAuthenticatedClient, uploads: {u
   
   try {
     // load existing releases, return empty array if error
-    const existingReleases = await fetch(`https://${CONFIG.arns.name}.arweave.net/releases`).then(res => res.json() as Promise<ReleasesData>).catch(err => {
+    const existingReleases = await fetch(`https://${CONFIG.arns.undername}_${CONFIG.arns.name}.arweave.net/releases`).then(res => {
+      if (res.status === 200) {
+        return res.json() as Promise<ReleasesData>;
+      } else {
+        return {releases: []};
+      }
+    }).catch(err => {
         console.error(chalk.red('Failed to fetch existing releases:'));
         console.error(chalk.red(err.message));
         return {releases: []};
@@ -315,7 +321,7 @@ async function createManifest(turboClient: TurboAuthenticatedClient, uploads: {u
         releasesData.releases[0]!.assets.push({
           platform,
           arch,
-          url: `https://${CONFIG.arns.name}.arweave.net/releases/${version}/${platform}/${arch}`,
+          url: `https://${CONFIG.arns.undername}_${CONFIG.arns.name}.arweave.net/releases/${version}/${platform}/${arch}`,
           arweave_id: uploadResponse.id
         });
         
@@ -542,12 +548,12 @@ async function main(): Promise<void> {
     console.log(chalk.gray('─'.repeat(50)));
     console.log(chalk.blue(`📦 Version: ${version}`));
     console.log(chalk.blue(`📁 Files processed: ${uploads.length}`));
-    console.log(chalk.blue(`🗂️  Manifest ID: ${manifestId}`));
-    console.log(chalk.blue(`📊 Releases API: ${releasesId}`));
+    console.log(chalk.blue(`🗂️  Manifest ID: https://arweave.net/${manifestId}`));
+    console.log(chalk.blue(`📊 Releases JSON: https://arweave.net/${releasesId}`));
     if (!CONFIG.dryRun) {
       console.log(chalk.blue(`🌐 Preview: https://arweave.net/${manifestId}`));
     }
-    console.log(chalk.blue(`🔗 ARNS URL: https://${CONFIG.arns.name}.arweave.dev`));
+    console.log(chalk.blue(`🔗 ARNS URL: https://${CONFIG.arns.undername}_${CONFIG.arns.name}.arweave.dev`));
     
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
