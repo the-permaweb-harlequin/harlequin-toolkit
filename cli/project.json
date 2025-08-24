@@ -31,6 +31,16 @@
           "cd scripts && yarn && yarn deploy"
         ]
       },
+      "configurations": {
+        "dry-run": {
+          "commands": [
+            "echo '🎭 [DRY RUN] Would run GoReleaser for CLI release...'",
+            "goreleaser release --clean --skip=publish --config .goreleaser.yaml",
+            "echo '🚀 [DRY RUN] Would deploy to Arweave...'",
+            "echo 'Skipping Arweave deployment in dry-run mode'"
+          ]
+        }
+      },
       "dependsOn": ["build"]
     },
     "release": {

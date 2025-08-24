@@ -37,24 +37,30 @@
   "release": {
     "projects": ["cli"],
     "projectsRelationship": "independent",
-    "releaseTagPattern": "cli-v{version}",
+    "releaseTagPattern": "v{version}",
     "changelog": {
       "workspaceChangelog": false,
+      "automaticFromRef": true,
       "projectChangelogs": {
         "cli": {
           "createRelease": "github",
-          "entryWhenNoChanges": false
+          "entryWhenNoChanges": false,
+          "file": "CHANGELOG.md"
         }
       }
     },
     "version": {
-      "conventionalCommits": true
+      "generatorOptions": {
+        "fallbackCurrentVersionResolver": "disk",
+        "currentVersionResolver": "git-tag",
+        "specifierSource": "conventional-commits"
+      }
     },
     "git": {
       "commit": true,
-      "commitMessage": "chore(release): publish cli-v{version} [skip ci]",
+      "commitMessage": "chore(release): publish v{version} [skip ci]",
       "tag": true,
-      "tagMessage": "Release cli-v{version}"
+      "tagMessage": "Release v{version}"
     }
   },
   "generators": {

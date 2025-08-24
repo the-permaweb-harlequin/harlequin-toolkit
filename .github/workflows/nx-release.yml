@@ -46,6 +46,11 @@ jobs:
       - name: Install dependencies
         run: yarn
 
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
       - name: Setup GoReleaser
         uses: goreleaser/goreleaser-action@v6.4.0
         with:
@@ -65,7 +70,7 @@ jobs:
           if [ -n "${{ inputs.version }}" ]; then
             npx nx release --version=${{ inputs.version }} --yes
           else
-            npx nx release --yes
+            npx nx release patch --yes
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -77,7 +82,7 @@ jobs:
           if [ -n "${{ inputs.version }}" ]; then
             npx nx release --version=${{ inputs.version }}-alpha --yes
           else
-            npx nx release --preid=alpha --yes
+            npx nx release prerelease --preid=alpha --yes
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,9 +93,9 @@ jobs:
         run: |
           echo "🧪 Dry run mode - showing what would be released"
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            npx nx release --dry-run
+            npx nx release patch --dry-run
           else
-            npx nx release --preid=alpha --dry-run
+            npx nx release prerelease --preid=alpha --dry-run
           fi
 
       - name: Test installation script

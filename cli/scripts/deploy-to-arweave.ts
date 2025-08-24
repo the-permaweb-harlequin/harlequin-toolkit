@@ -159,7 +159,7 @@ async function loadWallet(): Promise<JWKInterface> {
  */
 function getVersion(): string {
   const version = process.env.CLI_VERSION || 
-                 process.env.GITHUB_REF_NAME?.replace('cli-v', '') ||
+                 process.env.GITHUB_REF_NAME?.replace('v', '') ||
                  '0.0.0-dev';
   
   console.log(chalk.blue(`📦 Deploying CLI version: ${version}`));
@@ -280,7 +280,7 @@ async function createManifest(turboClient: TurboAuthenticatedClient, uploads: {u
     const releasesData: ReleasesData = {
       releases: [
         {
-          tag_name: `harlequin-cli-v${version}`,
+          tag_name: `v${version}`,
           version: version,
           created_at: new Date().toISOString(),
           assets: []
