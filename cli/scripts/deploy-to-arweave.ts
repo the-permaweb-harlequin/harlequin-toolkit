@@ -439,7 +439,7 @@ async function main(): Promise<void> {
         } as TurboUploadDataItemResponse;
       } else {
         installScript = await turboUploader.upload({
-          data: readFileSync(installScriptPath),
+          data: readFileSync(installScriptPath, {encoding: 'utf-8'}),
           dataItemOpts: {
               tags: [
                   ...dataItemOptions.tags,
@@ -505,6 +505,12 @@ async function main(): Promise<void> {
       console.log(chalk.yellow(`[DRYRUN] Would update ARNS undername: ${CONFIG.arns.undername}.${CONFIG.arns.name}`));
       console.log(chalk.yellow(`[DRYRUN] Would point to manifest: ${manifestId}`));
     } else {
+      console.log({
+        undername: CONFIG.arns.undername,
+        transactionId: manifestId,
+        ttlSeconds: 60,
+        tags: dataItemOptions.tags
+      })
       await ant!.setUndernameRecord({
           undername: CONFIG.arns.undername,
           transactionId: manifestId,
@@ -532,6 +538,8 @@ async function main(): Promise<void> {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error(chalk.red('\n❌ Deployment failed:'));
     console.error(chalk.red(errorMessage));
+    // stack trace
+    console.error(error);
     process.exit(1);
   }
 }
