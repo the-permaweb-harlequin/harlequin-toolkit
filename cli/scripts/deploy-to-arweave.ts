@@ -514,7 +514,8 @@ async function main(): Promise<void> {
       await ant!.setUndernameRecord({
           undername: CONFIG.arns.undername,
           transactionId: manifestId,
-          ttlSeconds: 60
+          ttlSeconds: 60,
+          priority: 8,
       }, {tags: dataItemOptions.tags})
     }
     
