@@ -10,6 +10,9 @@ project_name: harlequin
 env:
   - CGO_ENABLED=0
 
+# Output directory (relative to workspace root)
+dist: ../dist
+
 # Build configuration
 builds:
   - id: harlequin
@@ -79,64 +82,7 @@ changelog:
     - title: Others
       order: 999
 
-# GitHub Release
+# Skip GitHub Release (handled by Nx Release)
 release:
-  github:
-    owner: the-permaweb-harlequin
-    name: harlequin-toolkit
-  
-  # Release name
-  name_template: "Harlequin CLI v{{.Version}}"
-  
-  # Release notes
-  header: |
-    ## Harlequin CLI Release {{.Version}}
-    
-    ### Installation
-    
-    ```bash
-    # Quick install (latest)
-    curl -fsSL https://install_cli_harlequin.daemongate.io | sh
-    
-    # Specific version
-    curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION={{.Version}} sh
-    
-    # Dry run
-    curl -fsSL https://install_cli_harlequin.daemongate.io | sh -s -- --dryrun
-    ```
-    
-    ### Platform Downloads
-    
-    Choose the appropriate binary for your platform below.
-  
-  footer: |
-    ## Verification
-    
-    All binaries are signed and can be verified using the provided checksums.
-    
-    ```bash
-    # Verify checksum (example for Linux AMD64)
-    sha256sum harlequin_{{.Version}}_linux_amd64.tar.gz
-    ```
-    
-    **Full Changelog**: https://github.com/the-permaweb-harlequin/harlequin-toolkit/compare/{{.PreviousTag}}...{{.Tag}}
-
-# Custom publishers for Arweave
-publishers:
-  - name: arweave-deployment
-    env:
-      - ARWEAVE_WALLET_JWK
-      - ARNS_NAME
-    cmd: |
-      echo "🎭 Deploying Harlequin CLI to Arweave..."
-      
-      # Copy install script to dist for deployment
-      cp cli/scripts/install_cli.sh dist/ || echo "Install script not found"
-      
-      # Deploy to Arweave
-      cd cli/scripts
-      yarn --silent
-      CLI_VERSION="{{ .Version }}" yarn deploy
-      
-      echo "✅ Arweave deployment completed!"
+  disable: true
 

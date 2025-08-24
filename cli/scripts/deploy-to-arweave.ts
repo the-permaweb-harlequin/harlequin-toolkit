@@ -158,9 +158,25 @@ async function loadWallet(): Promise<JWKInterface> {
  * Get CLI version from package.json or environment
  */
 function getVersion(): string {
-  const version = process.env.CLI_VERSION || 
-                 process.env.GITHUB_REF_NAME?.replace('v', '') ||
-                 '0.0.0-dev';
+  let version = process.env.CLI_VERSION;
+  
+  // If no CLI_VERSION, try to read from package.json (updated by Nx Release)
+  if (!version) {
+    try {
+      const packageJsonPath = join(__dirname, '../package.json');
+      if (existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+        version = packageJson.version;
+      }
+    } catch (error) {
+      console.warn(chalk.yellow('Failed to read version from package.json'));
+    }
+  }
+  
+  // Fallback to environment or default
+  if (!version) {
+    version = process.env.GITHUB_REF_NAME?.replace('v', '') || '0.0.0-dev';
+  }
   
   console.log(chalk.blue(`📦 Deploying CLI version: ${version}`));
   return version;
@@ -504,7 +520,7 @@ async function main(): Promise<void> {
     
     // Update ARNS
     if (CONFIG.dryRun) {
-      console.log(chalk.yellow(`[DRYRUN] Would update ARNS undername: ${CONFIG.arns.undername}.${CONFIG.arns.name}`));
+      console.log(chalk.yellow(`[DRYRUN] Would update ARNS undername: ${CONFIG.arns.undername}_${CONFIG.arns.name}`));
       console.log(chalk.yellow(`[DRYRUN] Would point to manifest: ${manifestId}`));
     } else {
 

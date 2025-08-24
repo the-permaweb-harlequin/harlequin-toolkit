@@ -102,4 +102,4 @@ jobs:
         if: inputs.dry_run == false
         run: |
           echo "Testing installation script..."
-          curl -fsSL https://install_cli_harlequin.daemongate.io | DRYRUN=true sh
+          curl -fsSL https://install_cli_harlequin.daemongate.io | DRYRUN=true VERSION=0.1.0 sh

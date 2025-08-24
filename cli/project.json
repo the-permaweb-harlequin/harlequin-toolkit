@@ -24,21 +24,11 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "cli",
-        "commands": [
-          "echo '🎭 Running GoReleaser for CLI release...'",
-          "goreleaser release --clean --config .goreleaser.yaml",
-          "echo '🚀 Deploying to Arweave...'",
-          "cd scripts && yarn && yarn deploy"
-        ]
+        "command": "echo '🎭 Running GoReleaser for CLI release...' && goreleaser release --clean --config .goreleaser.yaml && echo '✅ GoReleaser completed successfully' && echo '🚀 Deploying to Arweave...' && cd scripts && yarn --silent && yarn deploy"
       },
       "configurations": {
         "dry-run": {
-          "commands": [
-            "echo '🎭 [DRY RUN] Would run GoReleaser for CLI release...'",
-            "goreleaser release --clean --skip=publish --config .goreleaser.yaml",
-            "echo '🚀 [DRY RUN] Would deploy to Arweave...'",
-            "echo 'Skipping Arweave deployment in dry-run mode'"
-          ]
+          "command": "echo '🎭 [DRY RUN] Running GoReleaser without publishing...' && goreleaser release --clean --skip=publish --config .goreleaser.yaml && echo '✅ GoReleaser dry-run completed' && echo '🚀 [DRY RUN] Running Arweave deployment simulation...' && cd scripts && yarn --silent && yarn deploy:dryrun"
         }
       },
       "dependsOn": ["build"]
