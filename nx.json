@@ -43,21 +43,12 @@
       "projectChangelogs": {
         "cli": {
           "createRelease": "github",
-          "entryWhenNoChanges": false,
-          "renderOptions": {
-            "authors": false,
-            "commitReferences": true,
-            "versionTitleDate": true
-          }
+          "entryWhenNoChanges": false
         }
       }
     },
     "version": {
-      "conventionalCommits": true,
-      "generatorOptions": {
-        "fallbackCurrentVersionResolver": "git-tag",
-        "currentVersionResolver": "git-tag"
-      }
+      "conventionalCommits": true
     },
     "git": {
       "commit": true,
