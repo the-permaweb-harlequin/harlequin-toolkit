@@ -226,7 +226,11 @@ function parsePlatformArch(filename: string): PlatformArch {
     // Archive format: harlequin_1.2.3_linux_amd64.tar.gz
     /harlequin_[\d.]+_([^_]+)_([^.]+)/,
     // Binary format: harlequin-linux-amd64
-    /harlequin-([^-]+)-([^.-]+)/
+    /harlequin-([^-]+)-([^.-]+)/,
+    // GoReleaser directory format: harlequin_darwin_amd64_v1/harlequin
+    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin/,
+    // GoReleaser directory format (windows): harlequin_windows_amd64_v1/harlequin.exe
+    /harlequin_([^_]+)_([^_]+)_v[\d.]+[\/\\]harlequin\.exe/
   ];
   
   for (const pattern of patterns) {
@@ -483,7 +487,7 @@ async function main(): Promise<void> {
           fastFinalityIndexes: []
         } as TurboUploadDataItemResponse;
         spinner.succeed(`[DRYRUN] Would compress and upload ${binaryName}`);
-        uploads.push({uploadResponse: mockUpload, name: binaryName});
+        uploads.push({uploadResponse: mockUpload, name: binary});
       } else {
         // Read and compress the binary
         const binaryData = readFileSync(binary);
@@ -508,7 +512,7 @@ async function main(): Promise<void> {
         })
         
         spinner.succeed(`Uploaded ${binaryName} (compressed ${compressionRatio}%): ${upload.id}`);
-        uploads.push({uploadResponse: upload, name: binaryName});
+        uploads.push({uploadResponse: upload, name: binary});
       }
     }
     
