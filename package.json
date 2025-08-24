@@ -12,7 +12,9 @@
     "lint:fix": "nx run-many --target=lint --all --fix",
     "test": "nx run-many --target=test --all",
     "format": "prettier --write .",
-    "typecheck": "nx run-many --target=typecheck --all"
+    "typecheck": "nx run-many --target=typecheck --all",
+    "clean": "find . -name '.DS_Store' -delete && find . -name '._*' -delete && find . -name 'Thumbs.db' -delete && echo 'Cleaned system files (.DS_Store, ._*, and Thumbs.db files)'",
+    "clean:dry-run": "find . -name '.DS_Store' -o -name '._*' -o -name 'Thumbs.db' | head -20"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.5.1",
