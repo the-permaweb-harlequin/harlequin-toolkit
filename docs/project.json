@@ -28,7 +28,7 @@
     "lint": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npm run lint",
+        "command": "npx eslint *.ts *.js *.mjs --cache --fix",
         "cwd": "docs"
       }
     }

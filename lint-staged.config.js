@@ -8,6 +8,13 @@ module.exports = {
     'prettier --write'
   ],
   
+  // Docs TypeScript/JavaScript files
+  'docs/**/*.{ts,tsx,js,jsx,mjs}': [
+    (filenames) =>
+      `npx eslint ${filenames.join(' ')} --cache --fix`,
+    'prettier --write'
+  ],
+  
   // App-specific styles - disable for now due to prettier compatibility issues
   // 'app/src/**/*.{less,css}': ['stylelint --fix'],
   
@@ -15,4 +22,5 @@ module.exports = {
   '*.{json,md,yml,yaml}': ['prettier --write'],
   'app/*.{json,md,yml,yaml}': ['prettier --write'],
   'cli/*.{json,md,yml,yaml}': ['prettier --write'],
+  'docs/**/*.{json,md,yml,yaml}': ['prettier --write'],
 }
