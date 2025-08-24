@@ -65,8 +65,8 @@ func (br *BuildRunner) GetBuildStatus(ctx context.Context) (*BuildStatus, error)
 
 // BuildStatus represents basic build configuration info
 type BuildStatus struct {
-	ImageName      string                 `json:"image_name"`
-	ContainerName  string                 `json:"container_name"`
-	WorkspaceDir   string                 `json:"workspace_dir"`
-	Config         *harlequinConfig.Config `json:"config"`
+	ImageName     string                  `json:"image_name"`
+	ContainerName string                  `json:"container_name"`
+	WorkspaceDir  string                  `json:"workspace_dir"`
+	Config        *harlequinConfig.Config `json:"config"`
 }

@@ -7,6 +7,7 @@ This setup combines the power of **GoReleaser** for professional Go binary relea
 ## 🎯 Benefits of GoReleaser + Nx
 
 ### **GoReleaser Advantages**
+
 - ✅ **Professional binary releases** - Multi-platform builds with proper naming
 - ✅ **Automatic changelog generation** - Based on conventional commits
 - ✅ **Archive creation** - tar.gz/zip with proper structure
@@ -16,6 +17,7 @@ This setup combines the power of **GoReleaser** for professional Go binary relea
 - ✅ **Custom publishers** - Upload to any hosting service
 
 ### **Nx Integration Benefits**
+
 - ✅ **Affected builds** - Only release when CLI changes
 - ✅ **Consistent tooling** - Same command structure across projects
 - ✅ **Parallel execution** - Build and test simultaneously
@@ -32,13 +34,14 @@ This setup combines the power of **GoReleaser** for professional Go binary relea
         │                        │                        │
         ▼                        ▼                        ▼
    Affected Detection      Multi-platform Builds     Binary Distribution
-   Build Coordination      GitHub Releases           Version Management  
+   Build Coordination      GitHub Releases           Version Management
    Testing & Linting       Changelog Generation      Install Script API
 ```
 
 ## 📋 Available Commands
 
 ### **Development Commands**
+
 ```bash
 # Build for current platform only
 npx nx build cli
@@ -57,6 +60,7 @@ npx nx lint cli
 ```
 
 ### **Release Commands**
+
 ```bash
 # Full release (requires git tag)
 npx nx release cli
@@ -71,6 +75,7 @@ npx nx release cli --configuration=dry-run
 ## 🏷️ Release Process
 
 ### **1. Prepare Release**
+
 ```bash
 # Ensure main is up to date
 git checkout main
@@ -82,6 +87,7 @@ npx nx goreleaser-check cli
 ```
 
 ### **2. Create and Push Tag**
+
 ```bash
 # Create CLI release tag
 git tag cli-v1.2.3
@@ -89,7 +95,9 @@ git push origin cli-v1.2.3
 ```
 
 ### **3. Automatic Release**
+
 GitHub Actions will:
+
 1. **Detect the CLI tag**
 2. **Validate GoReleaser config**
 3. **Build multi-platform binaries**
@@ -101,6 +109,7 @@ GitHub Actions will:
 ## 📦 What Gets Released
 
 ### **GitHub Release Assets**
+
 ```
 harlequin_1.2.3_linux_amd64.tar.gz
 harlequin_1.2.3_linux_arm64.tar.gz
@@ -112,6 +121,7 @@ checksums.txt
 ```
 
 ### **Binary Hosting Structure**
+
 ```
 https://install_cli_harlequin.daemongate.io/
 ├── releases/
@@ -134,13 +144,15 @@ https://install_cli_harlequin.daemongate.io/
 ### **GoReleaser Configuration (`.goreleaser.yaml`)**
 
 #### **Monorepo Setup**
+
 ```yaml
 monorepo:
-  tag_prefix: cli-v          # Tags like cli-v1.2.3
-  dir: cli                   # Work in cli/ directory
+  tag_prefix: cli-v # Tags like cli-v1.2.3
+  dir: cli # Work in cli/ directory
 ```
 
 #### **Build Matrix**
+
 ```yaml
 builds:
   - goos: [linux, darwin, windows]
@@ -150,6 +162,7 @@ builds:
 ```
 
 #### **Version Injection**
+
 ```yaml
 ldflags:
   - -X main.version={{.Version}}
@@ -159,6 +172,7 @@ ldflags:
 ```
 
 #### **Custom Publishers**
+
 ```yaml
 publishers:
   - name: daemongate-binaries
@@ -171,6 +185,7 @@ publishers:
 ### **Nx Integration (`project.json`)**
 
 #### **Build Targets**
+
 ```json
 {
   "build": {
@@ -192,6 +207,7 @@ publishers:
 ## 🔄 CI/CD Integration
 
 ### **GitHub Actions Workflow**
+
 ```yaml
 - name: Validate GoReleaser config
   run: npx nx goreleaser-check cli
@@ -206,6 +222,7 @@ publishers:
 ```
 
 ### **Required Secrets**
+
 ```bash
 GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx     # GitHub release access (automatic)
 ARWEAVE_WALLET_JWK={"kty":"RSA",...}      # Arweave wallet for deployments
@@ -214,45 +231,52 @@ ARWEAVE_WALLET_JWK={"kty":"RSA",...}      # Arweave wallet for deployments
 ## 📊 Advanced Features
 
 ### **Homebrew Integration**
+
 ```yaml
 brews:
   - name: harlequin
     repository:
       owner: the-permaweb-harlequin
       name: homebrew-tap
-    homepage: "https://github.com/the-permaweb-harlequin/harlequin-toolkit"
-    description: "🎭 Beautiful CLI for building Arweave projects"
+    homepage: 'https://github.com/the-permaweb-harlequin/harlequin-toolkit'
+    description: '🎭 Beautiful CLI for building Arweave projects'
 ```
 
 **Users can install with:**
+
 ```bash
 brew tap the-permaweb-harlequin/tap
 brew install harlequin
 ```
 
 ### **Docker Images**
+
 ```yaml
 dockers:
   - image_templates:
-      - "ghcr.io/the-permaweb-harlequin/harlequin:{{.Version}}-amd64"
-      - "ghcr.io/the-permaweb-harlequin/harlequin:latest-amd64"
+      - 'ghcr.io/the-permaweb-harlequin/harlequin:{{.Version}}-amd64'
+      - 'ghcr.io/the-permaweb-harlequin/harlequin:latest-amd64'
 ```
 
 **Users can run with:**
+
 ```bash
 docker run ghcr.io/the-permaweb-harlequin/harlequin:latest build
 ```
 
 ### **Changelog Generation**
+
 GoReleaser automatically generates changelogs from:
+
 - **feat:** → Features section
-- **fix:** → Bug fixes section  
+- **fix:** → Bug fixes section
 - **docs:** → Excluded
 - **chore:** → Excluded
 
 ## 🎯 Development Workflow
 
 ### **Daily Development**
+
 ```bash
 # Work on CLI features
 cd cli/
@@ -264,6 +288,7 @@ npx nx lint cli
 ```
 
 ### **Pre-Release Testing**
+
 ```bash
 # Test snapshot build
 npx nx release cli --configuration=snapshot
@@ -276,6 +301,7 @@ npx nx goreleaser-check cli
 ```
 
 ### **Release Checklist**
+
 - [ ] Update version-related code if needed
 - [ ] Test locally with `npx nx build cli --configuration=production`
 - [ ] Validate config with `npx nx goreleaser-check cli`
@@ -289,18 +315,21 @@ npx nx goreleaser-check cli
 This integration provides:
 
 ### **For Users**
+
 - ✅ **Professional installation** - `curl | sh` pattern
 - ✅ **Multiple install methods** - Install script, Homebrew, Docker
 - ✅ **Version management** - Install specific versions
 - ✅ **Cross-platform support** - Works on Linux, macOS, Windows
 
 ### **For Developers**
+
 - ✅ **Streamlined releases** - One command releases everything
 - ✅ **Consistent tooling** - Same Nx commands for all projects
 - ✅ **Professional artifacts** - Proper archives, checksums, changelogs
 - ✅ **Automated distribution** - Binaries automatically hosted
 
 ### **For Operations**
+
 - ✅ **Reliable releases** - Atomic, repeatable process
 - ✅ **Monitoring** - GitHub Actions logs and status
 - ✅ **Rollback capability** - Easy to revert to previous versions

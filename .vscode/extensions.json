@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "streetsidesoftware.code-spell-checker",
+    "bradlc.vscode-tailwindcss",
+    "eamodio.gitlens",
+    "esbenp.prettier-vscode",
+    "stylelint.vscode-stylelint",
+    "nrwl.angular-console",
+    "ms-vscode.vscode-typescript-next"
+  ]
+}

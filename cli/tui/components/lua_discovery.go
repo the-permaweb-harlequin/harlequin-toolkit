@@ -17,7 +17,7 @@ func NewLuaFileDiscovery() *LuaFileDiscovery {
 	return &LuaFileDiscovery{
 		skipDirs: []string{
 			"node_modules",
-			".git", 
+			".git",
 			".svn",
 			".hg",
 			"dist",
@@ -36,12 +36,12 @@ func NewLuaFileDiscovery() *LuaFileDiscovery {
 // FindLuaFiles recursively finds all .lua files in a directory
 func (lfd *LuaFileDiscovery) FindLuaFiles(rootDir string) ([]string, error) {
 	var luaFiles []string
-	
+
 	err := lfd.walkDirectory(rootDir, rootDir, 0, &luaFiles)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return luaFiles, nil
 }
 
@@ -51,21 +51,21 @@ func (lfd *LuaFileDiscovery) walkDirectory(rootDir, currentDir string, depth int
 	if depth > lfd.maxDepth {
 		return nil
 	}
-	
+
 	entries, err := os.ReadDir(currentDir)
 	if err != nil {
 		return err
 	}
-	
+
 	for _, entry := range entries {
 		fullPath := filepath.Join(currentDir, entry.Name())
-		
+
 		if entry.IsDir() {
 			// Skip directories we don't want to search
 			if lfd.shouldSkipDir(entry.Name()) {
 				continue
 			}
-			
+
 			// Recursively search subdirectory
 			if err := lfd.walkDirectory(rootDir, fullPath, depth+1, luaFiles); err != nil {
 				// Don't fail the entire search if one directory has issues
@@ -80,7 +80,7 @@ func (lfd *LuaFileDiscovery) walkDirectory(rootDir, currentDir string, depth int
 			*luaFiles = append(*luaFiles, relPath)
 		}
 	}
-	
+
 	return nil
 }
 

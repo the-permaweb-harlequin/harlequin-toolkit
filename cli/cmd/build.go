@@ -19,7 +19,7 @@ func HandleBuildCommand(ctx context.Context, args []string) {
 	// Parse flags
 	var debugMode bool
 	var projectPath string
-	
+
 	// Process arguments
 	remainingArgs := []string{}
 	for i, arg := range args {
@@ -46,12 +46,12 @@ func HandleBuildCommand(ctx context.Context, args []string) {
 		}
 		_ = i // unused variable fix
 	}
-	
+
 	// Enable debug mode if flag was provided
 	if debugMode {
 		debug.SetEnabled(true)
 	}
-	
+
 	// Determine if TUI or legacy CLI mode
 	if len(remainingArgs) == 0 {
 		// No path argument - launch TUI
@@ -75,7 +75,7 @@ func handleLegacyBuild(ctx context.Context, args []string) {
 
 	// Load config
 	cfg := loadConfig()
-	
+
 	// Get current working directory as workspace
 	workspaceDir, err := os.Getwd()
 	if err != nil {
@@ -105,13 +105,13 @@ func loadConfig() *config.Config {
 	if _, err := os.Stat(configPath); err == nil {
 		return config.ReadConfigFile(configPath)
 	}
-	
+
 	// Try build_configs directory
 	buildConfigPath := filepath.Join("build_configs", "ao-build-config.yml")
 	if _, err := os.Stat(buildConfigPath); err == nil {
 		return config.ReadConfigFile(buildConfigPath)
 	}
-	
+
 	// Use defaults
 	return config.NewConfig(nil)
 }

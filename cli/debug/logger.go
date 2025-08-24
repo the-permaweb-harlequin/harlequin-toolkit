@@ -22,7 +22,7 @@ func init() {
 	if strings.ToLower(os.Getenv("HARLEQUIN_DEBUG")) == "true" {
 		DebugEnabled = true
 	}
-	
+
 	// Initialize log file
 	initLogFile()
 }
@@ -40,7 +40,7 @@ func initLogFile() {
 		os.MkdirAll(harlequinDir, 0755)
 		LogFilePath = filepath.Join(harlequinDir, "harlequin-debug.log")
 	}
-	
+
 	// Create/open log file
 	var openErr error
 	logFile, openErr = os.OpenFile(LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -62,10 +62,10 @@ func logToFile(level, message string) {
 // Printf prints a debug message if debug mode is enabled
 func Printf(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	
+
 	// Always log to file
 	logToFile("DEBUG", message)
-	
+
 	// Only print to console if debug enabled
 	if DebugEnabled {
 		fmt.Printf("[DEBUG] " + message)
@@ -75,10 +75,10 @@ func Printf(format string, args ...interface{}) {
 // Println prints a debug message with newline if debug mode is enabled
 func Println(args ...interface{}) {
 	message := fmt.Sprint(args...)
-	
+
 	// Always log to file
 	logToFile("DEBUG", message)
-	
+
 	// Only print to console if debug enabled
 	if DebugEnabled {
 		fmt.Print("[DEBUG] ")
@@ -89,10 +89,10 @@ func Println(args ...interface{}) {
 // Info prints an informational message (always shown)
 func Info(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	
+
 	// Always log to file
 	logToFile("INFO", message)
-	
+
 	// Always print to console
 	fmt.Printf(message)
 }
@@ -105,10 +105,10 @@ func Infof(format string, args ...interface{}) {
 // Error logs an error message to both console and file
 func Error(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	
+
 	// Always log to file
 	logToFile("ERROR", message)
-	
+
 	// Always print to console
 	fmt.Printf("❌ Error: " + message)
 }
@@ -116,10 +116,10 @@ func Error(format string, args ...interface{}) {
 // Fatal logs a fatal error and provides log file location
 func Fatal(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	
+
 	// Always log to file
 	logToFile("FATAL", message)
-	
+
 	// Always print to console with additional context
 	fmt.Printf("❌ Fatal Error: %s\n", message)
 	if LogFilePath != "" {

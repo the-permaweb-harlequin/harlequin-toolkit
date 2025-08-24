@@ -26,14 +26,14 @@ const (
 
 // ConfigEditorComponent provides a reusable configuration editor
 type ConfigEditorComponent struct {
-	fields              []ConfigField
-	selectedIndex       int
-	isEditingText       bool
-	cursorVisible       bool
-	width               int
-	height              int
-	wasmOptions         []string // For WASM target selector
-	wasmSelectedIndex   int
+	fields            []ConfigField
+	selectedIndex     int
+	isEditingText     bool
+	cursorVisible     bool
+	width             int
+	height            int
+	wasmOptions       []string // For WASM target selector
+	wasmSelectedIndex int
 }
 
 // NewConfigEditor creates a new configuration editor
@@ -68,7 +68,7 @@ func (c *ConfigEditorComponent) SetFieldValues(target int, stackSizeMB, initialM
 	} else {
 		c.wasmSelectedIndex = 0
 	}
-	
+
 	c.fields[0].Value = targetValue
 	c.fields[1].Value = fmt.Sprintf("%.1f", stackSizeMB)
 	c.fields[2].Value = fmt.Sprintf("%.1f", initialMemoryMB)
@@ -83,26 +83,26 @@ func (c *ConfigEditorComponent) GetFieldValues() (target int, stackSize, initial
 	} else {
 		target = 64 // WASM 64-bit
 	}
-	
+
 	// Convert MB values back to bytes
 	if stackSizeMB, err := strconv.ParseFloat(c.fields[1].Value, 64); err == nil {
 		stackSize = int(stackSizeMB * 1024 * 1024)
 	} else {
 		return 0, 0, 0, 0, fmt.Errorf("invalid stack size: %s", c.fields[1].Value)
 	}
-	
+
 	if initialMemoryMB, err := strconv.ParseFloat(c.fields[2].Value, 64); err == nil {
 		initialMemory = int(initialMemoryMB * 1024 * 1024)
 	} else {
 		return 0, 0, 0, 0, fmt.Errorf("invalid initial memory: %s", c.fields[2].Value)
 	}
-	
+
 	if maximumMemoryMB, err := strconv.ParseFloat(c.fields[3].Value, 64); err == nil {
 		maxMemory = int(maximumMemoryMB * 1024 * 1024)
 	} else {
 		return 0, 0, 0, 0, fmt.Errorf("invalid maximum memory: %s", c.fields[3].Value)
 	}
-	
+
 	return target, stackSize, initialMemory, maxMemory, nil
 }
 
@@ -120,7 +120,7 @@ func (c *ConfigEditorComponent) HandleKeyPress(key string) bool {
 			c.isEditingText = true
 		}
 		return true
-		
+
 	case "down", "j":
 		if c.selectedIndex < 3 {
 			// Navigate down through input fields
@@ -132,7 +132,7 @@ func (c *ConfigEditorComponent) HandleKeyPress(key string) bool {
 			c.isEditingText = false
 		}
 		return true
-		
+
 	case "left", "h":
 		if c.selectedIndex == 0 {
 			// Handle Target field selector - switch to previous option
@@ -145,7 +145,7 @@ func (c *ConfigEditorComponent) HandleKeyPress(key string) bool {
 			c.selectedIndex = 5
 		}
 		return true
-		
+
 	case "right", "l":
 		if c.selectedIndex == 0 {
 			// Handle Target field selector - switch to next option
@@ -158,14 +158,14 @@ func (c *ConfigEditorComponent) HandleKeyPress(key string) bool {
 			c.selectedIndex = 4
 		}
 		return true
-		
+
 	case "tab":
 		if c.selectedIndex < 4 {
 			// From input fields to button container
 			c.selectedIndex = 4
 		}
 		return true
-		
+
 	case "backspace":
 		if c.isEditingText && c.selectedIndex > 0 && c.selectedIndex < 4 {
 			// Handle backspace in text input (skip Target field which is index 0)
@@ -175,13 +175,13 @@ func (c *ConfigEditorComponent) HandleKeyPress(key string) bool {
 		}
 		return true
 	}
-	
+
 	// Handle character input for non-Target fields
 	if c.isEditingText && c.selectedIndex > 0 && c.selectedIndex < 4 && len(key) == 1 && key[0] >= 32 && key[0] <= 126 {
 		c.fields[c.selectedIndex].Value += key
 		return true
 	}
-	
+
 	return false
 }
 
@@ -215,7 +215,7 @@ func (c *ConfigEditorComponent) Update(msg tea.Msg) tea.Cmd {
 // View renders the configuration editor panel
 func (c *ConfigEditorComponent) View() string {
 	var content string
-	
+
 	// Render each field
 	for i, field := range c.fields {
 		// Label styling
@@ -233,13 +233,13 @@ func (c *ConfigEditorComponent) View() string {
 				Padding(0, 2, 0, 0)
 			label = labelStyle.Render(field.Name)
 		}
-		
+
 		// Input styling - different behavior for Target field (selector) vs others (text input)
 		var input string
 		if i == 0 { // Target field - selector
 			// Create both WASM 32 and WASM 64 options
 			var wasm32, wasm64 string
-			
+
 			if c.wasmSelectedIndex == 0 {
 				// WASM 32 is selected
 				wasm32Style := lipgloss.NewStyle().
@@ -247,7 +247,7 @@ func (c *ConfigEditorComponent) View() string {
 					Foreground(lipgloss.Color("#FFFFFF")).
 					Padding(0, 1)
 				wasm32 = wasm32Style.Render("WASM 32")
-				
+
 				wasm64Style := lipgloss.NewStyle().
 					Background(lipgloss.Color("#444")).
 					Foreground(lipgloss.Color("#AAA")).
@@ -260,14 +260,14 @@ func (c *ConfigEditorComponent) View() string {
 					Foreground(lipgloss.Color("#AAA")).
 					Padding(0, 1)
 				wasm32 = wasm32Style.Render("WASM 32")
-				
+
 				wasm64Style := lipgloss.NewStyle().
 					Background(lipgloss.Color("#874BFD")).
 					Foreground(lipgloss.Color("#FFFFFF")).
 					Padding(0, 1)
 				wasm64 = wasm64Style.Render("WASM 64")
 			}
-			
+
 			// Join the options horizontally
 			optionsGroup := lipgloss.JoinHorizontal(lipgloss.Left, wasm32, " ", wasm64)
 			input = optionsGroup
@@ -281,7 +281,7 @@ func (c *ConfigEditorComponent) View() string {
 					cursor = " " // Invisible cursor (blink effect)
 				}
 				inputText := field.Value + cursor
-				
+
 				inputStyle := lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#874BFD")).
 					Align(lipgloss.Left)
@@ -291,10 +291,10 @@ func (c *ConfigEditorComponent) View() string {
 				input = field.Value
 			}
 		}
-		
+
 		// Create label/input group with proper spacing and alignment
 		labelInputGroup := lipgloss.JoinHorizontal(lipgloss.Left, label, input)
-		
+
 		// Container for the label/input group with border
 		var containerStyle lipgloss.Style
 		if i == c.selectedIndex {
@@ -316,17 +316,17 @@ func (c *ConfigEditorComponent) View() string {
 				AlignVertical(lipgloss.Center).
 				AlignHorizontal(lipgloss.Left)
 		}
-		
+
 		containerRow := containerStyle.Render(labelInputGroup)
 		content += containerRow + "\n"
 	}
-	
+
 	// Add centered horizontal button container at bottom
 	buttonAreaWidth := 37
 	buttonWidth := (buttonAreaWidth - 1) / 2
-	
+
 	var cancelBtn, saveBtn string
-	
+
 	if c.selectedIndex == 5 {
 		// Cancel selected
 		cancelStyle := lipgloss.NewStyle().
@@ -347,7 +347,7 @@ func (c *ConfigEditorComponent) View() string {
 			Align(lipgloss.Center)
 		cancelBtn = cancelStyle.Render("Cancel")
 	}
-	
+
 	if c.selectedIndex == 4 {
 		// Save & Build selected
 		saveStyle := lipgloss.NewStyle().
@@ -368,23 +368,23 @@ func (c *ConfigEditorComponent) View() string {
 			Align(lipgloss.Center)
 		saveBtn = saveStyle.Render("Save & Build")
 	}
-	
+
 	// Join buttons horizontally and center them
 	buttonContainer := lipgloss.JoinHorizontal(lipgloss.Top, cancelBtn, " ", saveBtn)
 	centeredButtons := lipgloss.NewStyle().
 		Width(37).
 		Align(lipgloss.Center).
 		Render(buttonContainer)
-	
+
 	// Center the fields content and use JoinVertical to stick buttons to bottom
 	centeredFields := lipgloss.NewStyle().
 		Width(37).
 		Align(lipgloss.Center).
 		Render(content)
-	
+
 	// Use JoinVertical with spacing to separate fields from buttons
 	finalContent := lipgloss.JoinVertical(lipgloss.Center, centeredFields, centeredButtons)
-	
+
 	// Create bordered panel
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

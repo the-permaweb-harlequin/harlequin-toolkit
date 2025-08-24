@@ -21,7 +21,7 @@ var (
 func main() {
 	// Ensure debug log file is closed on exit
 	defer debug.Close()
-	
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -73,7 +73,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("The interactive TUI provides a guided experience for:")
 	fmt.Println("  • Selecting build type (AOS Flavour)")
-	fmt.Println("  • Choosing entrypoint files") 
+	fmt.Println("  • Choosing entrypoint files")
 	fmt.Println("  • Configuring output directories")
 	fmt.Println("  • Editing .harlequin.yaml configuration")
 	fmt.Println()

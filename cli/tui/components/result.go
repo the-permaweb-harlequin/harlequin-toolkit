@@ -61,7 +61,7 @@ func (r *ResultComponent) Update(msg tea.Msg) tea.Cmd {
 func (r *ResultComponent) ViewPanel() string {
 	var icon string
 	var iconColor lipgloss.Color
-	
+
 	if r.resultType == ResultSuccess {
 		icon = "✅"
 		iconColor = lipgloss.Color("#00FF00")
@@ -69,12 +69,12 @@ func (r *ResultComponent) ViewPanel() string {
 		icon = "❌"
 		iconColor = lipgloss.Color("#FF0000")
 	}
-	
+
 	// Create content with icon and message
 	iconStyle := lipgloss.NewStyle().
 		Foreground(iconColor).
 		Bold(true)
-	
+
 	exitButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FAFAFA")).
 		Background(lipgloss.Color("#874BFD")).
@@ -84,12 +84,12 @@ func (r *ResultComponent) ViewPanel() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#874BFD")).
 		Align(lipgloss.Center)
-	
+
 	content := fmt.Sprintf("%s\n\n%s\n\n%s",
 		iconStyle.Render(icon+" "+r.message),
 		"",
 		exitButtonStyle.Render("[ Exit ]"))
-	
+
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#666")).
@@ -106,7 +106,7 @@ func (r *ResultComponent) ViewDetails() string {
 	if content == "" {
 		content = "No details available"
 	}
-	
+
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#666")).
@@ -120,7 +120,7 @@ func (r *ResultComponent) ViewDetails() string {
 func NewResultComponent(success bool, result interface{}, width, height int) *ResultComponent {
 	var resultType ResultType
 	var message, details string
-	
+
 	if success {
 		resultType = ResultSuccess
 		message = "Build completed successfully!"
@@ -130,31 +130,29 @@ func NewResultComponent(success bool, result interface{}, width, height int) *Re
 		message = "Build failed"
 		details = formatBuildDetails(result, false)
 	}
-	
+
 	rc := NewResult(resultType, message, details)
-	
+
 	rc.SetSize(width, height)
 	return rc
 }
 
-
-
 // formatBuildDetails extracts and formats build configuration and result details
 func formatBuildDetails(result interface{}, success bool) string {
 	details := "📋 Build Configuration:\n\n"
-	
+
 	// Use reflection to extract build flow information
 	v := reflect.ValueOf(result)
 	if v.Kind() == reflect.Ptr {
 		v = v.Elem()
 	}
-	
+
 	// Try to get Flow field
 	if v.Kind() == reflect.Struct {
 		flowField := v.FieldByName("Flow")
 		if flowField.IsValid() && !flowField.IsNil() {
 			flow := flowField.Elem()
-			
+
 			// Extract build configuration details
 			if buildType := flow.FieldByName("BuildType"); buildType.IsValid() {
 				details += fmt.Sprintf("• Build Type: %s\n", buildType.String())
@@ -165,11 +163,11 @@ func formatBuildDetails(result interface{}, success bool) string {
 			if outputDir := flow.FieldByName("OutputDir"); outputDir.IsValid() {
 				details += fmt.Sprintf("• Output Directory: %s\n", outputDir.String())
 			}
-			
+
 			// Try to extract config details
 			if configField := flow.FieldByName("Config"); configField.IsValid() && !configField.IsNil() {
 				config := configField.Elem()
-				
+
 				if target := config.FieldByName("Target"); target.IsValid() {
 					details += fmt.Sprintf("• Target: %s\n", target.String())
 				}
@@ -219,9 +217,9 @@ func formatBuildDetails(result interface{}, success bool) string {
 			}
 		}
 	}
-	
+
 	details += "\n"
-	
+
 	if success {
 		details += "✅ Build completed successfully!\n\n"
 		details += "📁 Output files created:\n"
@@ -230,7 +228,7 @@ func formatBuildDetails(result interface{}, success bool) string {
 		details += "• config.yml - Build configuration"
 	} else {
 		details += "❌ Build failed\n\n"
-		
+
 		// Try to extract error information
 		if errorField := v.FieldByName("Error"); errorField.IsValid() && !errorField.IsNil() {
 			details += "Error: " + errorField.Elem().String()
@@ -238,11 +236,9 @@ func formatBuildDetails(result interface{}, success bool) string {
 			details += fmt.Sprintf("Error details: %v", result)
 		}
 	}
-	
+
 	return details
 }
-
-
 
 // ViewDetailsPanel returns the details panel view (alias for compatibility)
 func (r *ResultComponent) ViewDetailsPanel() string {
@@ -253,7 +249,7 @@ func (r *ResultComponent) ViewDetailsPanel() string {
 func (r *ResultComponent) ViewPanelContent() string {
 	var icon string
 	var iconColor lipgloss.Color
-	
+
 	if r.resultType == ResultSuccess {
 		icon = "✅"
 		iconColor = lipgloss.Color("#00FF00")
@@ -261,12 +257,12 @@ func (r *ResultComponent) ViewPanelContent() string {
 		icon = "❌"
 		iconColor = lipgloss.Color("#FF0000")
 	}
-	
+
 	// Create content with icon and message
 	iconStyle := lipgloss.NewStyle().
 		Foreground(iconColor).
 		Bold(true)
-	
+
 	exitButtonStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FAFAFA")).
 		Background(lipgloss.Color("#874BFD")).
@@ -276,12 +272,12 @@ func (r *ResultComponent) ViewPanelContent() string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#874BFD")).
 		Align(lipgloss.Center)
-	
+
 	content := fmt.Sprintf("%s\n\n%s\n\n%s",
 		iconStyle.Render(icon+" "+r.message),
 		"",
 		exitButtonStyle.Render("[ Exit ]"))
-	
+
 	// Return content without outer border/sizing for layout containers to handle
 	return lipgloss.NewStyle().
 		Align(lipgloss.Center).
@@ -294,7 +290,7 @@ func (r *ResultComponent) ViewDetailsContent() string {
 	if content == "" {
 		content = "No details available"
 	}
-	
+
 	// Return content without outer border/sizing for layout containers to handle
 	return content
 }

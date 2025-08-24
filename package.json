@@ -6,14 +6,39 @@
   "author": "atticusofsparta <atticusofsparta@protonmail.com>",
   "license": "MIT",
   "scripts": {
-    "build": "next build",
-    "lint": "eslint ./src",
-    "test": "node ./run-tests.js",
-    "format": "prettier --write ."
+    "prepare": "husky install",
+    "build": "nx build",
+    "lint": "nx run-many --target=lint --all",
+    "lint:fix": "nx run-many --target=lint --all --fix",
+    "test": "nx run-many --target=test --all",
+    "format": "prettier --write .",
+    "typecheck": "nx run-many --target=typecheck --all"
   },
   "devDependencies": {
+    "@commitlint/cli": "^17.5.1",
+    "@commitlint/config-conventional": "^17.4.4",
+    "@nx/eslint": "^21.4.1",
     "@nx/js": "^21.4.1",
-    "eslint": "^9.33.0",
-    "prettier": "^3.6.2"
+    "@types/node": "^18.15.11",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^8.8.0",
+    "eslint-import-resolver-typescript": "^3.5.5",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-unused-imports": "^2.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.1",
+    "postcss": "^8.4.21",
+    "postcss-less": "^6.0.0",
+    "prettier": "^2.8.8",
+    "stylelint": "^15.4.0",
+    "stylelint-config-standard": "^32.0.0",
+    "stylelint-less": "^1.0.6",
+    "stylelint-prettier": "3",
+    "typescript": "^5.3.3"
   }
 }

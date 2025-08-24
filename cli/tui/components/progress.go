@@ -20,10 +20,10 @@ const (
 
 // ProgressStep represents a single step in a progress sequence
 type ProgressStep struct {
-	Name       string
-	Status     StepStatus
-	Spinner    harmonica.Spring
-	SpinPhase  float64
+	Name      string
+	Status    StepStatus
+	Spinner   harmonica.Spring
+	SpinPhase float64
 }
 
 // ProgressComponent provides a reusable progress display with animated steps
@@ -34,7 +34,7 @@ type ProgressComponent struct {
 	height int
 }
 
-// NewProgress creates a new progress component  
+// NewProgress creates a new progress component
 func NewProgress(title string, stepNames []string) *ProgressComponent {
 	steps := make([]ProgressStep, len(stepNames))
 	for i, name := range stepNames {
@@ -92,7 +92,7 @@ func (p *ProgressComponent) Update(msg tea.Msg) tea.Cmd {
 // View renders the progress panel
 func (p *ProgressComponent) View() string {
 	content := ""
-	
+
 	// Add title
 	if p.title != "" {
 		titleStyle := lipgloss.NewStyle().
@@ -101,7 +101,7 @@ func (p *ProgressComponent) View() string {
 			Margin(0, 0, 1, 0)
 		content += titleStyle.Render(p.title) + "\n"
 	}
-	
+
 	// Add steps with status indicators
 	for _, step := range p.steps {
 		icon := ""
@@ -120,7 +120,7 @@ func (p *ProgressComponent) View() string {
 		}
 		content += fmt.Sprintf("%s %s\n", icon, step.Name)
 	}
-	
+
 	// Create bordered panel
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -155,7 +155,7 @@ func (p *ProgressComponent) UpdateSteps(steps []BuildStep) {
 // ViewContent renders the progress content without borders/styling for use in layouts
 func (p *ProgressComponent) ViewContent() string {
 	content := ""
-	
+
 	// Add title
 	if p.title != "" {
 		titleStyle := lipgloss.NewStyle().
@@ -164,7 +164,7 @@ func (p *ProgressComponent) ViewContent() string {
 			Margin(0, 0, 1, 0)
 		content += titleStyle.Render(p.title) + "\n"
 	}
-	
+
 	// Add steps with status indicators
 	for _, step := range p.steps {
 		icon := ""
@@ -183,7 +183,7 @@ func (p *ProgressComponent) ViewContent() string {
 		}
 		content += fmt.Sprintf("%s %s\n", icon, step.Name)
 	}
-	
+
 	// Return content without border/sizing for layout containers to handle
 	return content
 }

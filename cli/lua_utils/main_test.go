@@ -203,7 +203,7 @@ func TestFileTraversal(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create a chain of dependencies: main.lua -> utils.lua -> core.lua
-	
+
 	// core.lua (bottom of the chain)
 	coreContent := `
 local function multiply(a, b)
@@ -331,7 +331,7 @@ func TestCircularDependency(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create circular dependency: a.lua -> b.lua -> a.lua
-	
+
 	// a.lua requires b.lua
 	aContent := `
 local b = require("b")

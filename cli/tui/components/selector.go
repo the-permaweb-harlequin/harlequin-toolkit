@@ -84,7 +84,7 @@ func (s *SelectorComponent) Update(msg tea.Msg) tea.Cmd {
 // View renders the selector panel
 func (s *SelectorComponent) View() string {
 	content := ""
-	
+
 	// Add title if provided
 	if s.title != "" {
 		titleStyle := lipgloss.NewStyle().
@@ -93,7 +93,7 @@ func (s *SelectorComponent) View() string {
 			Margin(0, 0, 1, 0)
 		content += titleStyle.Render(s.title) + "\n"
 	}
-	
+
 	// Add options with highlighting for selected
 	for i, option := range s.options {
 		if i == s.selectedIndex {
@@ -107,7 +107,7 @@ func (s *SelectorComponent) View() string {
 			content += "  " + option + "\n"
 		}
 	}
-	
+
 	// Create bordered panel
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

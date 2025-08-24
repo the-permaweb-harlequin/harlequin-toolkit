@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	DefaultAOSGitHash = "15dd81ee596518e2f44521e973b8ad1ce3ee9945"
-	DefaultComputeLimit = "9000000000000"
-	DefaultModuleFormat = "wasm32-unknown-emscripten-metering"
-	DefaultTarget = 32
-	DefaultStackSize = 3145728
+	DefaultAOSGitHash    = "15dd81ee596518e2f44521e973b8ad1ce3ee9945"
+	DefaultComputeLimit  = "9000000000000"
+	DefaultModuleFormat  = "wasm32-unknown-emscripten-metering"
+	DefaultTarget        = 32
+	DefaultStackSize     = 3145728
 	DefaultInitialMemory = 4194304
 	DefaultMaximumMemory = 1073741824
 )
@@ -27,22 +27,22 @@ type Config struct {
 }
 
 type PartialConfig struct {
-	StackSize *int
+	StackSize     *int
 	InitialMemory *int
 	MaximumMemory *int
-	Target *int
-	ComputeLimit *string
+	Target        *int
+	ComputeLimit  *string
 }
 
 func NewConfig(partialConfig *PartialConfig) *Config {
 	config := &Config{
-		StackSize: DefaultStackSize,
+		StackSize:     DefaultStackSize,
 		InitialMemory: DefaultInitialMemory,
 		MaximumMemory: DefaultMaximumMemory,
-		Target: DefaultTarget,
-		ComputeLimit: DefaultComputeLimit,
-		ModuleFormat: DefaultModuleFormat,
-		AOSGitHash: DefaultAOSGitHash,
+		Target:        DefaultTarget,
+		ComputeLimit:  DefaultComputeLimit,
+		ModuleFormat:  DefaultModuleFormat,
+		AOSGitHash:    DefaultAOSGitHash,
 	}
 
 	if partialConfig != nil {
@@ -95,4 +95,3 @@ func WriteConfigFile(config *Config, path string) error {
 	yamlString := ToYAML(config)
 	return os.WriteFile(path, []byte(yamlString), 0644)
 }
-

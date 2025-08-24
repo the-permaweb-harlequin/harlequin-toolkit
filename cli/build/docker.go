@@ -42,4 +42,3 @@ func (dm *DockerManager) GetImageName() string {
 func (dm *DockerManager) GetContainerName() string {
 	return dm.containerName
 }
-

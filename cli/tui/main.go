@@ -34,10 +34,10 @@ const (
 // Model represents the modernized TUI application state
 type Model struct {
 	// Core state
-	state   ViewState
-	flow    *BuildFlow
-	ctx     context.Context
-	
+	state ViewState
+	flow  *BuildFlow
+	ctx   context.Context
+
 	// Bubbles components
 	keyMap         components.KeyMap
 	help           help.Model
@@ -49,14 +49,14 @@ type Model struct {
 	configForm     *components.ConfigFormComponent
 	progress       *components.ProgressComponent
 	result         *components.ResultComponent
-	
+
 	// Layout
 	width  int
 	height int
-	
+
 	// File selection mode
 	useFilePicker bool // true = manual picker, false = automatic list
-	
+
 	// Build process
 	buildResult *BuildResult
 	program     *tea.Program
@@ -82,7 +82,10 @@ type BuildResult struct {
 
 // Messages for Bubble Tea
 type BuildStepStartMsg struct{ StepName string }
-type BuildStepCompleteMsg struct{ StepName string; Success bool }
+type BuildStepCompleteMsg struct {
+	StepName string
+	Success  bool
+}
 type BuildCompleteMsg struct{ Result *BuildResult }
 type TickMsg struct{}
 
@@ -91,13 +94,13 @@ func NewModel(ctx context.Context) *Model {
 	// Initialize components
 	keyMap := components.DefaultKeyMap()
 	helpModel := help.New()
-	
+
 	// Create build type selector
 	buildSelector := components.CreateBuildTypeSelector(40, 10)
-	
+
 	// Initialize progress component
 	progress := components.NewProgressComponent(40, 10)
-	
+
 	return &Model{
 		state:         ViewBuildTypeSelection,
 		flow:          &BuildFlow{},
@@ -120,13 +123,13 @@ func (m *Model) Init() tea.Cmd {
 // Update handles Bubble Tea messages
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resizeComponents()
-		
+
 	case tea.KeyMsg:
 		// Global key bindings
 		switch {
@@ -138,7 +141,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Back):
 			return m.handleBack()
 		}
-		
+
 		// State-specific handling
 		switch m.state {
 		case ViewBuildTypeSelection:
@@ -156,7 +159,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ViewBuildSuccess, ViewBuildError:
 			return m.updateBuildResult(msg)
 		}
-		
+
 	case BuildStepStartMsg:
 		if m.progress != nil {
 			steps := []components.BuildStep{
@@ -164,7 +167,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.progress.UpdateSteps(steps)
 		}
-		
+
 	case BuildStepCompleteMsg:
 		if m.progress != nil {
 			status := components.StepSuccess
@@ -176,7 +179,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.progress.UpdateSteps(steps)
 		}
-		
+
 	case BuildCompleteMsg:
 		m.buildResult = msg.Result
 		if msg.Result.Success {
@@ -184,8 +187,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.state = ViewBuildError
 		}
-		
-		// Create result component 
+
+		// Create result component
 		// Using content methods that don't apply their own sizing/borders
 		m.result = components.NewResultComponent(
 			msg.Result.Success,
@@ -193,9 +196,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			0, // Width not used by content methods
 			0, // Height not used by content methods
 		)
-		
+
 		return m, nil
-		
+
 	case TickMsg:
 		// Update progress animations during build
 		if m.state == ViewBuildRunning && m.progress != nil {
@@ -206,7 +209,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 	}
-	
+
 	return m, tea.Batch(cmds...)
 }
 
@@ -215,11 +218,11 @@ func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Loading..."
 	}
-	
+
 	// Calculate container width with margin to prevent overflow
 	containerWidth := m.width - 10
 	header := components.CreateHeader(m.getViewTitle(), containerWidth)
-	
+
 	// Create main content based on state
 	var content string
 	switch m.state {
@@ -238,17 +241,17 @@ func (m *Model) View() string {
 	case ViewBuildSuccess, ViewBuildError:
 		content = m.viewBuildResult()
 	}
-	
+
 	// Create controls/help with proper width
 	controls := m.createControls()
-	
+
 	// Create main layout with proper container
 	mainLayout := lipgloss.JoinVertical(lipgloss.Left,
 		header,
 		content,
 		controls,
 	)
-	
+
 	// Create bordered container that fits the terminal with some margin
 	container := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -256,13 +259,13 @@ func (m *Model) View() string {
 		Padding(0, 1).
 		Width(containerWidth).
 		Render(mainLayout)
-	
+
 	// Center the container horizontally
 	leftMargin := (m.width - containerWidth) / 2
 	container = lipgloss.NewStyle().
 		MarginLeft(leftMargin).
 		Render(container)
-	
+
 	// Only center vertically if we have plenty of extra space
 	// Be conservative to avoid overflow
 	if m.height > 35 {
@@ -272,7 +275,7 @@ func (m *Model) View() string {
 			MarginTop(topPadding).
 			Render(container)
 	}
-	
+
 	return container
 }
 
@@ -280,10 +283,10 @@ func (m *Model) View() string {
 func (m *Model) resizeComponents() {
 	basePanelWidth := m.getPanelWidth()
 	panelHeight := m.getPanelHeight()
-	
+
 	// Use the same width calculation as createTwoPanelLayout
 	actualPanelWidth := basePanelWidth - 2 // Match the layout's panel width
-	
+
 	if m.buildSelector != nil {
 		m.buildSelector.SetSize(actualPanelWidth, panelHeight)
 	}
@@ -312,17 +315,17 @@ func (m *Model) getPanelWidth() int {
 	// Available width inside the container
 	// Container has explicit width set, so only padding (2 chars) reduces available space
 	layoutWidth := containerWidth - 2
-	
+
 	// Each panel gets half the layout width minus gap, but use more space
 	// Gap is 1 char, so each panel gets (layoutWidth - 1) / 2, plus some extra
 	basePanelWidth := (layoutWidth - 1) / 2
 	panelWidth := basePanelWidth + 3 // Add 3 chars to each panel to use more space
-	
+
 	// Ensure minimum width
 	if panelWidth < 15 {
 		panelWidth = 15
 	}
-	
+
 	return panelWidth
 }
 
@@ -340,12 +343,12 @@ func (m *Model) getContentHeight() int {
 	// Header and footer are 2 lines each = 4 lines total
 	// Make layout 1 line smaller to prevent overflow
 	contentHeight := m.height - 4 - 4 - 1 // 4 for header+footer, 4 for container, 1 for safety
-	
+
 	// Ensure minimum height
 	if contentHeight < 8 {
 		contentHeight = 8
 	}
-	
+
 	return contentHeight
 }
 
@@ -377,23 +380,23 @@ func (m *Model) viewBuildTypeSelection() string {
 	if m.buildSelector == nil {
 		return "Loading build types..."
 	}
-	
+
 	leftPanel := m.buildSelector.View()
-	
+
 	// Right panel with description
 	selected := m.buildSelector.GetSelected()
 	description := "Select a build configuration type to continue."
 	if selected != nil {
 		description = selected.Description()
 	}
-	
+
 	rightPanel := components.CreateDescriptionPanel(
 		"AOS Flavour",
 		description,
-		m.getPanelWidth() - 2, // Match the panel container width
-		0, // Height not used anymore - panel sizes naturally
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore - panel sizes naturally
 	)
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -411,7 +414,7 @@ func (m *Model) viewEntrypointSelection() string {
 			m.useFilePicker = true
 		}
 	}
-	
+
 	if m.useFilePicker {
 		// Use manual file picker
 		if m.filePicker == nil {
@@ -419,41 +422,41 @@ func (m *Model) viewEntrypointSelection() string {
 			actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
 			m.filePicker = components.CreateEntrypointFilePicker(cwd, actualPanelWidth, m.getPanelHeight())
 		}
-		
+
 		leftPanel := m.filePicker.View()
-		
+
 		// Right panel with file picker instructions
 		rightPanel := components.CreateDescriptionPanel(
 			"Manual File Selection",
 			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .lua files with Enter\n\nPress 'l' to switch to automatic discovery",
 				m.filePicker.GetCurrentDirectory()),
-			m.getPanelWidth() - 2, // Match the panel container width
-			0, // Height not used anymore
+			m.getPanelWidth()-2, // Match the panel container width
+			0,                   // Height not used anymore
 		)
-		
+
 		return m.createTwoPanelLayout(leftPanel, rightPanel)
 	} else {
 		// Use automatic discovery list
 		leftPanel := m.fileSelector.View()
-		
+
 		// Right panel with discovery info
 		selectedFile := ""
 		if selected := m.fileSelector.GetSelected(); selected != nil {
 			selectedFile = selected.Value()
 		}
-		
+
 		description := "Automatically discovered .lua files in your project\n\nFiles are found recursively (excluding build directories)\n\nPress 'f' to switch to manual file picker"
 		if selectedFile != "" {
 			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
 		}
-		
+
 		rightPanel := components.CreateDescriptionPanel(
 			"Auto-discovered Files",
 			description,
-			m.getPanelWidth() - 2, // Match the panel container width
-			0, // Height not used anymore
+			m.getPanelWidth()-2, // Match the panel container width
+			0,                   // Height not used anymore
 		)
-		
+
 		return m.createTwoPanelLayout(leftPanel, rightPanel)
 	}
 }
@@ -465,16 +468,16 @@ func (m *Model) viewOutputDirectory() string {
 		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
 		m.outputInput = components.CreateOutputDirInput(actualPanelWidth, m.getPanelHeight())
 	}
-	
+
 	leftPanel := m.outputInput.View()
-	
+
 	rightPanel := components.CreateDescriptionPanel(
 		"Output Directory",
 		"Enter the path where build outputs should be saved.\n\nThe build will create:\n• WASM binary\n• Lua bundle\n• Configuration files\n\nExamples:\n• ./dist\n• examples/dist\n• ./build",
-		m.getPanelWidth() - 2, // Match the panel container width
-		0, // Height not used anymore
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore
 	)
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -485,18 +488,18 @@ func (m *Model) viewConfigReview() string {
 		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
 		m.actionSelector = components.CreateConfigActionSelector(actualPanelWidth, m.getPanelHeight())
 	}
-	
+
 	leftPanel := m.actionSelector.View()
-	
+
 	// Right panel with current config preview
 	configPreview := m.formatConfigPreview()
 	rightPanel := components.CreateDescriptionPanel(
 		"Current Configuration",
 		configPreview,
-		m.getPanelWidth() - 2, // Match the panel container width
-		0, // Height not used anymore
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore
 	)
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -506,7 +509,7 @@ func (m *Model) viewConfigEditing() string {
 		// Initialize config form
 		actualPanelWidth := m.getPanelWidth() - 2 // Match layout panel width
 		m.configForm = components.NewConfigForm(actualPanelWidth, m.getPanelHeight())
-		
+
 		// Load current config values
 		if m.flow.Config != nil {
 			m.configForm.SetFieldValues(
@@ -517,18 +520,18 @@ func (m *Model) viewConfigEditing() string {
 			)
 		}
 	}
-	
+
 	leftPanel := m.configForm.View()
-	
+
 	// Right panel with field description
 	fieldTitle, fieldDesc := m.configForm.GetCurrentDescription()
 	rightPanel := components.CreateDescriptionPanel(
 		fieldTitle,
 		fieldDesc,
-		m.getPanelWidth() - 2, // Match the panel container width
-		0, // Height not used anymore
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore
 	)
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -538,14 +541,14 @@ func (m *Model) viewBuildRunning() string {
 	if m.progress != nil {
 		leftPanel = m.progress.ViewContent()
 	}
-	
+
 	rightPanel := components.CreateDescriptionPanel(
 		"Build Progress",
 		"Building your project...\n\nThis may take a few minutes depending on your project size.",
-		m.getPanelWidth() - 2, // Match the panel container width
-		0, // Height not used anymore
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore
 	)
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -554,10 +557,10 @@ func (m *Model) viewBuildResult() string {
 	if m.result == nil {
 		return "No result available"
 	}
-	
+
 	leftPanel := m.result.ViewPanelContent()
 	rightPanel := m.result.ViewDetailsContent()
-	
+
 	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
@@ -566,22 +569,22 @@ func (m *Model) createTwoPanelLayout(leftPanel, rightPanel string) string {
 	panelWidth := m.getPanelWidth() - 2 // Reduce width by 1 to prevent overflow
 	contentHeight := m.getContentHeight()
 	panelHeight := contentHeight - 2 // Make each panel 1 line smaller
-	
+
 	// Apply left panel style with border and calculated width (left-aligned content)
 	leftStyled := components.LeftPanelStyle.
 		Width(panelWidth).
 		Height(panelHeight).
 		Render(leftPanel)
-	
+
 	// Apply right panel style with calculated width/height (left-aligned content)
 	rightStyled := components.RightPanelStyle.
 		Width(panelWidth).
 		Height(panelHeight).
 		Render(rightPanel)
-	
+
 	// Fixed 1-character gap
 	spacer := "" // Exactly 1 space
-	
+
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		leftStyled,
@@ -593,7 +596,7 @@ func (m *Model) createTwoPanelLayout(leftPanel, rightPanel string) string {
 // createControls creates the bottom controls section
 func (m *Model) createControls() string {
 	var controls []string
-	
+
 	switch m.state {
 	case ViewBuildTypeSelection:
 		controls = []string{"↑/↓ Navigate", "Enter Select", "q Quit"}
@@ -618,7 +621,7 @@ func (m *Model) createControls() string {
 	case ViewBuildSuccess, ViewBuildError:
 		controls = []string{"Enter Exit", "q Quit"}
 	}
-	
+
 	// Use container width for controls (with same margin as main container)
 	containerWidth := m.width - 10
 	return components.CreateControls(controls, containerWidth)
@@ -629,7 +632,7 @@ func (m *Model) formatConfigPreview() string {
 	if m.flow.Config == nil {
 		return "No configuration loaded"
 	}
-	
+
 	config := m.flow.Config
 	return fmt.Sprintf(`Build Type: %s
 Entrypoint: %s
@@ -657,7 +660,7 @@ func (m *Model) updateBuildTypeSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if newSelector, ok := model.(*components.ListSelectorComponent); ok {
 		m.buildSelector = newSelector
 	}
-	
+
 	// Check if enter was pressed after updating the component
 	if key.Matches(msg, m.keyMap.Enter) {
 		if selected := m.buildSelector.GetSelected(); selected != nil {
@@ -666,7 +669,7 @@ func (m *Model) updateBuildTypeSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	
+
 	return m, cmd
 }
 
@@ -687,10 +690,10 @@ func (m *Model) updateEntrypointSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	
+
 	if key.Matches(msg, m.keyMap.Enter) {
 		var selectedFile string
-		
+
 		if m.useFilePicker {
 			if m.filePicker != nil && m.filePicker.HasSelection() {
 				selectedFile = m.filePicker.GetSelectedFile()
@@ -702,14 +705,14 @@ func (m *Model) updateEntrypointSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		
+
 		if selectedFile != "" && selectedFile != "No Lua files found" {
 			m.flow.Entrypoint = selectedFile
 			m.state = ViewOutputDirectory
 			return m, nil
 		}
 	}
-	
+
 	// Update the active component
 	if m.useFilePicker && m.filePicker != nil {
 		model, cmd := m.filePicker.Update(msg)
@@ -724,7 +727,7 @@ func (m *Model) updateEntrypointSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, cmd
 	}
-	
+
 	return m, nil
 }
 
@@ -735,23 +738,23 @@ func (m *Model) updateOutputDirectory(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if newInput, ok := model.(*components.TextInputComponent); ok {
 			m.outputInput = newInput
 		}
-		
+
 		// Check if enter was pressed after updating the component
 		if key.Matches(msg, m.keyMap.Enter) {
 			value := m.outputInput.GetValue()
 			if value != "" {
 				m.flow.OutputDir = value
-				
+
 				// Load or create config
 				m.flow.Config = m.loadOrCreateConfig()
 				m.state = ViewConfigReview
 				return m, nil
 			}
 		}
-		
+
 		return m, cmd
 	}
-	
+
 	return m, nil
 }
 
@@ -762,7 +765,7 @@ func (m *Model) updateConfigReview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
 			m.actionSelector = newSelector
 		}
-		
+
 		// Check if enter was pressed after updating the component
 		if key.Matches(msg, m.keyMap.Enter) {
 			if selected := m.actionSelector.GetSelected(); selected != nil {
@@ -782,10 +785,10 @@ func (m *Model) updateConfigReview(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		
+
 		return m, cmd
 	}
-	
+
 	return m, nil
 }
 
@@ -798,7 +801,7 @@ func (m *Model) updateConfigEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				debug.Printf("Error saving config: %v", err)
 				return m, nil
 			}
-			
+
 			// Start build
 			return m.startBuild()
 		} else if action == "cancel" {
@@ -806,7 +809,7 @@ func (m *Model) updateConfigEditing(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	}
-	
+
 	model, cmd := m.configForm.Update(msg)
 	if newForm, ok := model.(*components.ConfigFormComponent); ok {
 		m.configForm = newForm
@@ -824,7 +827,7 @@ func (m *Model) updateBuildResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.keyMap.Enter) {
 		return m, tea.Quit
 	}
-	
+
 	return m, nil
 }
 
@@ -839,7 +842,7 @@ func (m *Model) handleBack() (tea.Model, tea.Cmd) {
 	case ViewConfigEditing:
 		m.state = ViewConfigReview
 	}
-	
+
 	return m, nil
 }
 
@@ -852,7 +855,7 @@ func (m *Model) loadOrCreateConfig() *config.Config {
 			return cfg
 		}
 	}
-	
+
 	// Try build config
 	buildConfigPath := filepath.Join("build_configs", "ao-build-config.yml")
 	if _, err := os.Stat(buildConfigPath); err == nil {
@@ -860,7 +863,7 @@ func (m *Model) loadOrCreateConfig() *config.Config {
 			return cfg
 		}
 	}
-	
+
 	// Create default config
 	return config.NewConfig(nil)
 }
@@ -871,21 +874,21 @@ func (m *Model) saveConfigFromForm() error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Update config
 	m.flow.Config.Target = target
 	m.flow.Config.StackSize = stackSize
 	m.flow.Config.InitialMemory = initialMemory
 	m.flow.Config.MaximumMemory = maxMemory
 	m.flow.ConfigEdited = true
-	
+
 	return nil
 }
 
 // startBuild initiates the build process
 func (m *Model) startBuild() (tea.Model, tea.Cmd) {
 	m.state = ViewBuildRunning
-	
+
 	// Start the build in a goroutine
 	return m, func() tea.Msg {
 		go m.runBuild()
@@ -897,10 +900,10 @@ func (m *Model) startBuild() (tea.Model, tea.Cmd) {
 func (m *Model) runBuild() {
 	debug.Printf("Starting build process")
 	debug.Printf("Build config: %+v", m.flow)
-	
+
 	var buildErr error
 	success := true
-	
+
 	// Execute the build using AOSBuilder directly
 	buildErr = m.executeRealBuild()
 	if buildErr != nil {
@@ -909,14 +912,14 @@ func (m *Model) runBuild() {
 	} else {
 		debug.Printf("Build completed successfully")
 	}
-	
+
 	// Send final result
 	result := &BuildResult{
 		Success: success,
 		Error:   buildErr,
 		Flow:    m.flow,
 	}
-	
+
 	if m.program != nil {
 		m.program.Send(BuildCompleteMsg{Result: result})
 	}
@@ -925,13 +928,13 @@ func (m *Model) runBuild() {
 // executeRealBuild runs the actual build process with progress updates
 func (m *Model) executeRealBuild() error {
 	debug.Printf("Executing real build for entrypoint: %s", m.flow.Entrypoint)
-	
+
 	// Debug: Print build configuration
 	debug.Printf("Build configuration:")
 	debug.Printf("  Entrypoint: %s", m.flow.Entrypoint)
 	debug.Printf("  OutputDir: %s", m.flow.OutputDir)
 	debug.Printf("  Config: %+v", m.flow.Config)
-	
+
 	// Create AOSBuilder and execute the complete build process
 	builder := builders.NewAOSBuilder(builders.AOSBuilderParams{
 		Config:     m.flow.Config,
@@ -940,7 +943,7 @@ func (m *Model) executeRealBuild() error {
 		Callbacks:  builders.NoOpCallbacks(), // Silent for now
 	})
 	debug.Printf("AOSBuilder created successfully")
-	
+
 	// Define build steps to match the progress component expectations
 	steps := []struct {
 		name string
@@ -977,42 +980,42 @@ func (m *Model) executeRealBuild() error {
 			return nil // This was handled by the build
 		}},
 	}
-	
+
 	// Execute each step with progress updates
 	for _, step := range steps {
 		// Send step start message
 		if m.program != nil {
 			m.program.Send(BuildStepStartMsg{StepName: step.name})
 		}
-		
+
 		// Execute the step
 		err := step.fn()
-		
+
 		// Send step completion message
 		if m.program != nil {
 			m.program.Send(BuildStepCompleteMsg{StepName: step.name, Success: err == nil})
 		}
-		
+
 		// If step failed, return the error
 		if err != nil {
 			return fmt.Errorf("step '%s' failed: %w", step.name, err)
 		}
-		
+
 		// Small delay for visual feedback
 		time.Sleep(200 * time.Millisecond)
 	}
-	
+
 	return nil
 }
 
 // RunBuildTUI starts the modernized interactive build TUI
 func RunBuildTUI(ctx context.Context) error {
 	m := NewModel(ctx)
-	
+
 	// Start the Bubble Tea program
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	m.program = p // Store reference for sending messages
-	
+
 	_, err := p.Run()
 	return err
 }

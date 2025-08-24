@@ -13,12 +13,12 @@ import (
 
 // HelpRenderer provides a reusable help documentation viewer using Glamour and Bubbles
 type HelpRenderer struct {
-	viewport     viewport.Model
-	ready        bool
-	width        int
-	height       int
-	content      string
-	title        string
+	viewport viewport.Model
+	ready    bool
+	width    int
+	height   int
+	content  string
+	title    string
 }
 
 // NewHelpRenderer creates a new help renderer for the given command
@@ -164,7 +164,7 @@ func loadHelpContent(command string) (string, error) {
 		if docsPath == "" {
 			continue
 		}
-		
+
 		if content, err := os.ReadFile(docsPath); err == nil {
 			return string(content), nil
 		} else {

@@ -13,13 +13,13 @@ import (
 
 // ConfigFormComponent provides a professional configuration editor using Bubbles textinput
 type ConfigFormComponent struct {
-	inputs        []textinput.Model
-	wasmTarget    int // 0 = 32-bit, 1 = 64-bit
-	focused       int
-	width         int
-	height        int
-	keyMap        KeyMap
-	isInButtons   bool
+	inputs         []textinput.Model
+	wasmTarget     int // 0 = 32-bit, 1 = 64-bit
+	focused        int
+	width          int
+	height         int
+	keyMap         KeyMap
+	isInButtons    bool
 	selectedButton int // 0 = Save & Build, 1 = Cancel
 }
 
@@ -37,13 +37,13 @@ var configFields = []struct {
 // NewConfigForm creates a new configuration form using textinput components
 func NewConfigForm(width, height int) *ConfigFormComponent {
 	inputs := make([]textinput.Model, len(configFields))
-	
+
 	for i, field := range configFields {
 		input := textinput.New()
 		input.Placeholder = field.placeholder
 		input.CharLimit = 10
 		input.Width = 20
-		
+
 		// Set validation for numeric fields
 		input.Validate = func(s string) error {
 			if s == "" {
@@ -54,15 +54,15 @@ func NewConfigForm(width, height int) *ConfigFormComponent {
 			}
 			return nil
 		}
-		
+
 		inputs[i] = input
 	}
-	
+
 	// Focus the first input
 	if len(inputs) > 0 {
 		inputs[0].Focus()
 	}
-	
+
 	return &ConfigFormComponent{
 		inputs:     inputs,
 		wasmTarget: 0, // Default to 32-bit
@@ -80,7 +80,7 @@ func (cf *ConfigFormComponent) SetFieldValues(target int, stackSizeMB, initialMe
 	} else {
 		cf.wasmTarget = 0
 	}
-	
+
 	values := []float64{stackSizeMB, initialMemoryMB, maxMemoryMB}
 	for i, value := range values {
 		if i < len(cf.inputs) {
@@ -97,29 +97,29 @@ func (cf *ConfigFormComponent) GetFieldValues() (target int, stackSize, initialM
 	} else {
 		target = 32
 	}
-	
+
 	// Parse memory values
 	values := make([]int, 3)
 	fieldNames := []string{"Stack Size", "Initial Memory", "Maximum Memory"}
-	
+
 	for i, input := range cf.inputs {
 		if i >= len(values) {
 			break
 		}
-		
+
 		valueStr := input.Value()
 		if valueStr == "" {
 			valueStr = input.Placeholder
 		}
-		
+
 		valueMB, parseErr := strconv.ParseFloat(valueStr, 64)
 		if parseErr != nil {
 			return 0, 0, 0, 0, fmt.Errorf("invalid %s: %s", fieldNames[i], valueStr)
 		}
-		
+
 		values[i] = int(valueMB * 1024 * 1024) // Convert MB to bytes
 	}
-	
+
 	return target, values[0], values[1], values[2], nil
 }
 
@@ -137,7 +137,7 @@ func (cf *ConfigFormComponent) SetSize(width, height int) {
 // Update handles Bubble Tea messages
 func (cf *ConfigFormComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
@@ -155,7 +155,7 @@ func (cf *ConfigFormComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return cf, nil
 		case key.Matches(msg, cf.keyMap.Right):
-			if cf.focused == -1 { // WASM Target selector  
+			if cf.focused == -1 { // WASM Target selector
 				cf.wasmTarget = 1 // Switch to 64-bit
 			} else if cf.isInButtons {
 				cf.selectedButton = 0 // Save & Build
@@ -168,14 +168,14 @@ func (cf *ConfigFormComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return cf, nil
 		}
 	}
-	
+
 	// Update the focused text input
 	if cf.focused >= 0 && cf.focused < len(cf.inputs) && !cf.isInButtons {
 		var cmd tea.Cmd
 		cf.inputs[cf.focused], cmd = cf.inputs[cf.focused].Update(msg)
 		cmds = append(cmds, cmd)
 	}
-	
+
 	return cf, tea.Batch(cmds...)
 }
 
@@ -265,7 +265,7 @@ func (cf *ConfigFormComponent) GetCurrentDescription() (string, string) {
 // View renders the configuration form
 func (cf *ConfigFormComponent) View() string {
 	var rows []string
-	
+
 	// WASM Target selector
 	wasmLabel := "WASM Target"
 	if cf.focused == -1 {
@@ -274,11 +274,11 @@ func (cf *ConfigFormComponent) View() string {
 			Bold(true).
 			Render("WASM Target")
 	}
-	
+
 	// WASM options
 	wasm32Style := lipgloss.NewStyle().Padding(0, 1)
 	wasm64Style := lipgloss.NewStyle().Padding(0, 1)
-	
+
 	if cf.wasmTarget == 0 {
 		wasm32Style = wasm32Style.
 			Background(lipgloss.Color("#874BFD")).
@@ -294,36 +294,36 @@ func (cf *ConfigFormComponent) View() string {
 			Background(lipgloss.Color("#874BFD")).
 			Foreground(lipgloss.Color("#FFFFFF"))
 	}
-	
+
 	wasmOptions := lipgloss.JoinHorizontal(lipgloss.Left,
 		wasm32Style.Render("WASM 32"),
 		" ",
 		wasm64Style.Render("WASM 64"),
 	)
-	
+
 	wasmRow := lipgloss.JoinHorizontal(lipgloss.Left, wasmLabel, "  ", wasmOptions)
-	
+
 	// Calculate width for bordered elements
 	inputWidth := cf.width - 4 // Account for element borders and some margin
-	
+
 	wasmBorderStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		Padding(0, 1).
 		Width(inputWidth).
 		Height(1)
-	
+
 	if cf.focused == -1 {
 		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#874BFD"))
 	} else {
 		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#666"))
 	}
-	
+
 	rows = append(rows, wasmBorderStyle.Render(wasmRow))
-	
+
 	// Text input fields
 	for i, input := range cf.inputs {
 		field := configFields[i]
-		
+
 		label := field.label
 		if cf.focused == i {
 			label = lipgloss.NewStyle().
@@ -331,42 +331,42 @@ func (cf *ConfigFormComponent) View() string {
 				Bold(true).
 				Render(label)
 		}
-		
+
 		inputRow := lipgloss.JoinHorizontal(lipgloss.Left, label, "  ", input.View())
-		
+
 		// Create border - use available width
 		borderStyle := lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			Padding(0, 1).
 			Width(inputWidth).
 			Height(1)
-			
+
 		if cf.focused == i {
 			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#874BFD"))
 		} else {
 			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#666"))
 		}
-		
+
 		rows = append(rows, borderStyle.Render(inputRow))
 	}
-	
-	// Buttons - calculate width more conservatively 
+
+	// Buttons - calculate width more conservatively
 	// Each button has border (2) + padding (2) = 4 chars overhead each
 	// Plus 1 space between buttons = 9 chars total overhead
 	buttonWidth := (inputWidth - 10) / 2 // Account for button borders, padding, and gap
-	
+
 	saveStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		Padding(0, 1).
 		Width(buttonWidth).
 		Align(lipgloss.Center)
-		
+
 	cancelStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		Padding(0, 1).
 		Width(buttonWidth).
 		Align(lipgloss.Center)
-	
+
 	if cf.isInButtons {
 		if cf.selectedButton == 0 {
 			saveStyle = saveStyle.
@@ -385,21 +385,21 @@ func (cf *ConfigFormComponent) View() string {
 		saveStyle = saveStyle.BorderForeground(lipgloss.Color("#666"))
 		cancelStyle = cancelStyle.BorderForeground(lipgloss.Color("#666"))
 	}
-	
+
 	saveBtn := saveStyle.Render("Save & Build")
 	cancelBtn := cancelStyle.Render("Cancel")
-	
+
 	buttonContainer := lipgloss.JoinHorizontal(lipgloss.Top, cancelBtn, " ", saveBtn)
 	centeredButtons := lipgloss.NewStyle().
 		Width(inputWidth). // Match the input width exactly
 		Align(lipgloss.Center).
 		Render(buttonContainer)
-	
+
 	rows = append(rows, "", centeredButtons) // Add spacing before buttons
-	
+
 	// Join all rows and center them
 	content := strings.Join(rows, "\n")
-	
+
 	// Return content directly - let the panel layout handle sizing and positioning
 	return content
 }

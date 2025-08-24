@@ -1,0 +1,22 @@
+{
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true,
+    "source.fixAll.stylelint": true
+  },
+  "git.ignoreLimitWarning": true,
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "eslint.workingDirectories": [
+    { "directory": "./app", "changeProcessCwd": true },
+    { "directory": "./sdk", "changeProcessCwd": true },
+    { "directory": "./server", "changeProcessCwd": true },
+    { "directory": "./cli", "changeProcessCwd": true }
+  ],
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.nx": true
+  }
+}

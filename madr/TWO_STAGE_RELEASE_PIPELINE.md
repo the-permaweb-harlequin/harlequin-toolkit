@@ -12,12 +12,14 @@ The Harlequin CLI uses a two-stage release pipeline to provide both bleeding-edg
 ## 📋 Release Types
 
 ### Alpha Releases (Bleeding Edge)
+
 - **Trigger**: Automatic on push to `develop` branch
 - **Versioning**: `1.2.3-alpha.1`, `1.2.3-alpha.2`, etc.
 - **URL Structure**: `/releases/1.2.3-alpha.1/{platform}/{arch}`
 - **Purpose**: Early testing, feature previews, CI/CD validation
 
 ### Stable Releases (Production)
+
 - **Trigger**: Manual git tags (`cli-v1.2.3`)
 - **Versioning**: Semantic versioning (`1.2.3`)
 - **URL Structure**: `/releases/1.2.3/{platform}/{arch}`
@@ -26,6 +28,7 @@ The Harlequin CLI uses a two-stage release pipeline to provide both bleeding-edg
 ## 🔄 Workflow
 
 ### Alpha Release Process
+
 1. **Developer** pushes changes to `develop` branch
 2. **GitHub Actions** automatically:
    - Detects CLI changes
@@ -36,6 +39,7 @@ The Harlequin CLI uses a two-stage release pipeline to provide both bleeding-edg
    - Comments on related PRs with install instructions
 
 ### Stable Release Process
+
 1. **Maintainer** creates release tag: `git tag cli-v1.2.3`
 2. **GitHub Actions** automatically:
    - Builds production binaries
@@ -46,6 +50,7 @@ The Harlequin CLI uses a two-stage release pipeline to provide both bleeding-edg
 ## 📦 Installation
 
 ### Stable Releases (Recommended)
+
 ```bash
 # Latest stable version
 curl -fsSL https://install_cli_harlequin.daemongate.io | sh
@@ -55,6 +60,7 @@ curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION=1.2.3 sh
 ```
 
 ### Alpha Releases (Bleeding Edge)
+
 ```bash
 # Specific alpha version
 curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION=1.2.3-alpha.1 sh
@@ -64,6 +70,7 @@ curl -fsSL https://install_cli_harlequin.daemongate.io | VERSION=1.2.3-alpha.5 s
 ```
 
 ### Environment Variables
+
 ```bash
 # Dry run any installation
 DRYRUN=true curl -fsSL https://install_cli_harlequin.daemongate.io | sh
@@ -75,6 +82,7 @@ VERSION=1.2.3-alpha.1 curl -fsSL https://install_cli_harlequin.daemongate.io | s
 ## 🏗️ Development Workflow
 
 ### Feature Development
+
 1. Create feature branch from `develop`
 2. Implement changes
 3. Create PR to `develop`
@@ -85,6 +93,7 @@ VERSION=1.2.3-alpha.1 curl -fsSL https://install_cli_harlequin.daemongate.io | s
 8. Create stable release tag
 
 ### Hotfix Workflow
+
 1. Create hotfix branch from `main`
 2. Fix issue
 3. Create PR to `main`
@@ -94,22 +103,26 @@ VERSION=1.2.3-alpha.1 curl -fsSL https://install_cli_harlequin.daemongate.io | s
 ## 🔧 Configuration
 
 ### GitHub Secrets Required
+
 - `GITHUB_TOKEN` - Automatic (for releases)
 - `ARWEAVE_WALLET_JWK` - Arweave wallet for deployments
 
 ### Environment Variables
+
 - `CLI_VERSION` - Version being released (set automatically by workflows)
 - `ARWEAVE_WALLET_JWK` - Arweave wallet as JSON string (for deployments)
 
 ## 📊 Version Management
 
 ### Alpha Versioning
+
 - Base version from latest stable tag
 - Auto-increment alpha number
 - Format: `{base_version}-alpha.{increment}`
 - Example: `1.2.3-alpha.1`, `1.2.3-alpha.2`
 
 ### Stable Versioning
+
 - Manual semantic versioning
 - Format: `{major}.{minor}.{patch}`
 - Example: `1.2.3`, `2.0.0`
@@ -117,16 +130,19 @@ VERSION=1.2.3-alpha.1 curl -fsSL https://install_cli_harlequin.daemongate.io | s
 ## 🚨 Troubleshooting
 
 ### Alpha Release Not Triggered
+
 - Check if changes are in `cli/` directory
 - Verify push is to `develop` branch
 - Check GitHub Actions logs
 
 ### Stable Release Issues
+
 - Ensure tag format is `cli-v{version}`
 - Check tag doesn't have `-alpha` suffix
 - Verify all required secrets are set
 
 ### Installation Issues
+
 ```bash
 # Debug installation
 curl -fsSL https://install_cli_harlequin.daemongate.io | sh -s -- --dryrun
@@ -141,16 +157,19 @@ curl -fsSL https://alpha.harlequin.arweave.dev | sh -s -- --dryrun
 ## 📈 Benefits
 
 ### For Developers
+
 - **Fast Feedback**: Alpha releases provide immediate testing
 - **CI/CD Validation**: Automatic testing of deployment pipeline
 - **Feature Previews**: Early access to new features
 
 ### For Users
+
 - **Stability**: Stable channel provides tested releases
 - **Choice**: Can opt into bleeding-edge features
 - **Reliability**: Separate channels prevent accidental alpha usage
 
 ### For Maintainers
+
 - **Quality Control**: Two-stage validation process
 - **Risk Management**: Alpha testing before stable release
 - **Automated Process**: Minimal manual intervention required

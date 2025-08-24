@@ -32,7 +32,7 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 	for i, item := range items {
 		listItems[i] = item
 	}
-	
+
 	// Create delegate for custom styling
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
@@ -41,7 +41,7 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 		Underline(true)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
 		Foreground(lipgloss.Color("#666"))
-	
+
 	// Create the list model
 	listModel := list.New(listItems, delegate, width, height)
 	listModel.Title = title
@@ -52,7 +52,7 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 		Background(lipgloss.Color("")).
 		Bold(true).
 		Padding(0, 0, 1, 0)
-	
+
 	return &ListSelectorComponent{
 		list: listModel,
 	}
@@ -102,7 +102,7 @@ func (ls *ListSelectorComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Arrow keys should be passed through to the list
 		}
 	}
-	
+
 	var cmd tea.Cmd
 	ls.list, cmd = ls.list.Update(msg)
 	return ls, cmd
@@ -133,11 +133,11 @@ func CreateBuildTypeSelector(width, height int) *ListSelectorComponent {
 			value:       "aos",
 		},
 	}
-	
+
 	return NewListSelector("Select Build Configuration", items, width, height)
 }
 
-// CreateEntrypointSelector creates a selector for entrypoint files  
+// CreateEntrypointSelector creates a selector for entrypoint files
 func CreateEntrypointSelector(luaFiles []string, width, height int) *ListSelectorComponent {
 	items := make([]ListItem, len(luaFiles))
 	for i, file := range luaFiles {
@@ -147,7 +147,7 @@ func CreateEntrypointSelector(luaFiles []string, width, height int) *ListSelecto
 			value:       file,
 		}
 	}
-	
+
 	return NewListSelector("Select Entrypoint File", items, width, height)
 }
 
@@ -158,7 +158,7 @@ func CreateEntrypointSelectorWithDiscovery(rootDir string, width, height int) (*
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// If no files found, provide helpful message
 	if len(luaFiles) == 0 {
 		items := []ListItem{
@@ -170,7 +170,7 @@ func CreateEntrypointSelectorWithDiscovery(rootDir string, width, height int) (*
 		}
 		return NewListSelector("Select Entrypoint File", items, width, height), nil
 	}
-	
+
 	return CreateEntrypointSelector(luaFiles, width, height), nil
 }
 
@@ -183,7 +183,7 @@ func CreateOutputDirSelector(width, height int) *ListSelectorComponent {
 			value:       "examples/dist",
 		},
 		{
-			title:       "examples/build", 
+			title:       "examples/build",
 			description: "Output to examples/build",
 			value:       "examples/build",
 		},
@@ -194,11 +194,11 @@ func CreateOutputDirSelector(width, height int) *ListSelectorComponent {
 		},
 		{
 			title:       "./build",
-			description: "Output to current directory", 
+			description: "Output to current directory",
 			value:       "./build",
 		},
 	}
-	
+
 	return NewListSelector("Select Output Directory", items, width, height)
 }
 
@@ -216,6 +216,6 @@ func CreateConfigActionSelector(width, height int) *ListSelectorComponent {
 			value:       "edit",
 		},
 	}
-	
+
 	return NewListSelector("Configuration Review", items, width, height)
 }

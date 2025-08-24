@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #f8f9fa;
+    --foreground: #2d3436;
+    --card: #ffffff;
+    --card-foreground: #2d3436;
+    --popover: #ffffff;
+    --popover-foreground: #2d3436;
+    --primary: #8b1538;
+    --primary-foreground: #ffffff;
+    --secondary: #e9ecef;
+    --secondary-foreground: #2d3436;
+    --muted: #f1f3f4;
+    --muted-foreground: #636e72;
+    --accent: #ddd6fe;
+    --accent-foreground: #2d3436;
+    --destructive: #e74c3c;
+    --destructive-foreground: #ffffff;
+    --border: #dee2e6;
+    --input: #dee2e6;
+    --ring: #8b1538;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: #2d3436;
+    --foreground: #ddd6fe;
+    --card: #36393f;
+    --card-foreground: #ddd6fe;
+    --popover: #36393f;
+    --popover-foreground: #ddd6fe;
+    --primary: #c53965;
+    --primary-foreground: #ffffff;
+    --secondary: #4a4d52;
+    --secondary-foreground: #ddd6fe;
+    --muted: #40444b;
+    --muted-foreground: #b2bec3;
+    --accent: #5a4fcf;
+    --accent-foreground: #ffffff;
+    --destructive: #e74c3c;
+    --destructive-foreground: #ffffff;
+    --border: #4a4d52;
+    --input: #4a4d52;
+    --ring: #c53965;
+  }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}

@@ -35,23 +35,23 @@ type AOSBuilderParams struct {
 
 // BuildStepInfo contains information about a build step execution
 type BuildStepInfo struct {
-	StepName    string
-	StartTime   time.Time
-	EndTime     time.Time
-	Duration    time.Duration
-	Success     bool
-	Error       error
-	Metadata    map[string]interface{}
+	StepName  string
+	StartTime time.Time
+	EndTime   time.Time
+	Duration  time.Duration
+	Success   bool
+	Error     error
+	Metadata  map[string]interface{}
 }
 
 // BuildCallbacks defines callback functions for each step of the build process
 type BuildCallbacks struct {
-	OnCopyAOSFiles  func(ctx context.Context, info BuildStepInfo)
-	OnBundleLua     func(ctx context.Context, info BuildStepInfo) 
-	OnInjectLua     func(ctx context.Context, info BuildStepInfo)
-	OnWasmCompile   func(ctx context.Context, info BuildStepInfo)
-	OnCopyOutputs   func(ctx context.Context, info BuildStepInfo)
-	OnCleanup       func(ctx context.Context, info BuildStepInfo)
+	OnCopyAOSFiles func(ctx context.Context, info BuildStepInfo)
+	OnBundleLua    func(ctx context.Context, info BuildStepInfo)
+	OnInjectLua    func(ctx context.Context, info BuildStepInfo)
+	OnWasmCompile  func(ctx context.Context, info BuildStepInfo)
+	OnCopyOutputs  func(ctx context.Context, info BuildStepInfo)
+	OnCleanup      func(ctx context.Context, info BuildStepInfo)
 }
 
 // NoOpCallbacks returns a BuildCallbacks with no-op functions
@@ -63,12 +63,12 @@ func NoOpCallbacks() *BuildCallbacks {
 var (
 	// CallbacksSilent provides no-op callbacks for silent operation
 	CallbacksSilent = &BuildCallbacks{
-		OnCopyAOSFiles:  func(ctx context.Context, info BuildStepInfo) {},
-		OnBundleLua:     func(ctx context.Context, info BuildStepInfo) {},
-		OnInjectLua:     func(ctx context.Context, info BuildStepInfo) {},
-		OnWasmCompile:   func(ctx context.Context, info BuildStepInfo) {},
-		OnCopyOutputs:   func(ctx context.Context, info BuildStepInfo) {},
-		OnCleanup:       func(ctx context.Context, info BuildStepInfo) {},
+		OnCopyAOSFiles: func(ctx context.Context, info BuildStepInfo) {},
+		OnBundleLua:    func(ctx context.Context, info BuildStepInfo) {},
+		OnInjectLua:    func(ctx context.Context, info BuildStepInfo) {},
+		OnWasmCompile:  func(ctx context.Context, info BuildStepInfo) {},
+		OnCopyOutputs:  func(ctx context.Context, info BuildStepInfo) {},
+		OnCleanup:      func(ctx context.Context, info BuildStepInfo) {},
 	}
 
 	// CallbacksDefault provides standard emoji-based logging

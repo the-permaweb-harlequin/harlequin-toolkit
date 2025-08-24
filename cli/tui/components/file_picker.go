@@ -29,7 +29,7 @@ func NewFilePicker(width, height int) *FilePickerComponent {
 	fp.Styles.Permission = fp.Styles.Permission.Foreground(lipgloss.Color("#666"))
 	fp.Styles.Selected = fp.Styles.Selected.Foreground(lipgloss.Color("#874BFD")).Bold(true)
 	fp.Styles.FileSize = fp.Styles.FileSize.Foreground(lipgloss.Color("#666"))
-	
+
 	return &FilePickerComponent{
 		filepicker: fp,
 		width:      width,
@@ -78,7 +78,7 @@ func (fpc *FilePickerComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	var cmd tea.Cmd
 	fpc.filepicker, cmd = fpc.filepicker.Update(msg)
 	return fpc, cmd
@@ -87,17 +87,17 @@ func (fpc *FilePickerComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the file picker
 func (fpc *FilePickerComponent) View() string {
 	content := fpc.filepicker.View()
-	
+
 	// Add title and instructions
 	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#874BFD")).
 		Render("Select Entrypoint File")
-	
+
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666")).
 		Render("Navigate with ↑/↓, Enter directories with →, Select .lua files with Enter")
-	
+
 	// Combine title, instructions, and file picker
 	fullContent := lipgloss.JoinVertical(lipgloss.Left,
 		title,
@@ -106,7 +106,7 @@ func (fpc *FilePickerComponent) View() string {
 		"",
 		content,
 	)
-	
+
 	// Create bordered panel
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).

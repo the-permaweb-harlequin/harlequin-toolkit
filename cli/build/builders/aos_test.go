@@ -285,7 +285,7 @@ return utils
 		t.Errorf("Expected process.wasm not found at: %s", wasmPath)
 	} else {
 		t.Logf("✅ process.wasm successfully created at: %s", wasmPath)
-		
+
 		// Check file size (should be > 0)
 		wasmInfo, err := os.Stat(wasmPath)
 		if err != nil {
@@ -303,7 +303,7 @@ return utils
 		t.Errorf("Expected bundled.lua not found at: %s", bundledPath)
 	} else {
 		t.Logf("✅ bundled.lua successfully created at: %s", bundledPath)
-		
+
 		// Read and verify bundled content contains our test code
 		bundledContent, err := os.ReadFile(bundledPath)
 		if err != nil {
@@ -339,7 +339,7 @@ func TestBuildCallbacks(t *testing.T) {
 	// Track which callbacks were called
 	calledCallbacks := make(map[string]bool)
 	var callbackInfos []BuildStepInfo
-	
+
 	// Create custom callbacks to track calls
 	testCallbacks := &BuildCallbacks{
 		OnCopyAOSFiles: func(ctx context.Context, info BuildStepInfo) {
@@ -398,9 +398,9 @@ func TestBuildCallbacks(t *testing.T) {
 
 	// Create AOS config
 	config := &harlequinConfig.Config{
-		ComputeLimit:  "9000000000",
-		ModuleFormat:  "wasm32_unknown_emscripten_metering",
-		AOSGitHash:    "main",
+		ComputeLimit: "9000000000",
+		ModuleFormat: "wasm32_unknown_emscripten_metering",
+		AOSGitHash:   "main",
 	}
 
 	// Create builder with custom callbacks using default config path
@@ -470,7 +470,7 @@ func TestCallbackConstants(t *testing.T) {
 	if CallbacksProgress == nil {
 		t.Error("CallbacksProgress should not be nil")
 	}
-	
+
 	// Test that they have all required callback functions
 	if CallbacksSilent.OnCopyAOSFiles == nil {
 		t.Error("CallbacksSilent.OnCopyAOSFiles should not be nil")
@@ -481,28 +481,28 @@ func TestCallbackConstants(t *testing.T) {
 	if CallbacksProgress.OnWasmCompile == nil {
 		t.Error("CallbacksProgress.OnWasmCompile should not be nil")
 	}
-	
+
 	// Test that NoOpCallbacks returns the same as CallbacksSilent
 	noOpCallbacks := NoOpCallbacks()
 	if noOpCallbacks != CallbacksSilent {
 		t.Error("NoOpCallbacks() should return CallbacksSilent")
 	}
-	
+
 	// Test that DefaultLoggingCallbacks returns the same as CallbacksDefault
 	defaultCallbacks := DefaultLoggingCallbacks()
 	if defaultCallbacks != CallbacksDefault {
 		t.Error("DefaultLoggingCallbacks() should return CallbacksDefault")
 	}
-	
+
 	t.Log("✅ All callback constants verified successfully!")
 }
 
 func TestAOSBuilderParams(t *testing.T) {
 	// Test creating AOSBuilder with params struct
 	config := &harlequinConfig.Config{
-		ComputeLimit:  "9000000000",
-		ModuleFormat:  "wasm32_unknown_emscripten_metering",
-		AOSGitHash:    "main",
+		ComputeLimit: "9000000000",
+		ModuleFormat: "wasm32_unknown_emscripten_metering",
+		AOSGitHash:   "main",
 	}
 
 	configPath := "test-config.yml"
@@ -526,7 +526,7 @@ func TestAOSBuilderParams(t *testing.T) {
 	if builder.workspaceDir == "" {
 		t.Error("WorkspaceDir should be auto-generated and not empty")
 	}
-	
+
 	// Verify workspace is in temp directory and has correct prefix
 	tempDir := os.TempDir()
 	if !strings.HasPrefix(builder.workspaceDir, tempDir) {
@@ -565,9 +565,9 @@ func TestAOSBuilderParams(t *testing.T) {
 func TestAOSBuilderDefaultConfigPath(t *testing.T) {
 	// Test that nil ConfigFilePath defaults to ".harlequin.yaml"
 	config := &harlequinConfig.Config{
-		ComputeLimit:  "9000000000",
-		ModuleFormat:  "wasm32_unknown_emscripten_metering",
-		AOSGitHash:    "main",
+		ComputeLimit: "9000000000",
+		ModuleFormat: "wasm32_unknown_emscripten_metering",
+		AOSGitHash:   "main",
 	}
 
 	params := AOSBuilderParams{
@@ -608,9 +608,9 @@ func TestAOSBuilderDefaultConfigPath(t *testing.T) {
 func TestAOSBuilderNonExistentConfigPath(t *testing.T) {
 	// Test that AOSBuilder doesn't fail when config file path doesn't exist
 	config := &harlequinConfig.Config{
-		ComputeLimit:  "9000000000",
-		ModuleFormat:  "wasm32_unknown_emscripten_metering",
-		AOSGitHash:    "main",
+		ComputeLimit: "9000000000",
+		ModuleFormat: "wasm32_unknown_emscripten_metering",
+		AOSGitHash:   "main",
 	}
 
 	// Create temporary workspace for this test
@@ -620,7 +620,7 @@ func TestAOSBuilderNonExistentConfigPath(t *testing.T) {
 
 	// Specify a config file that definitely doesn't exist
 	nonExistentConfigPath := "./definitely-does-not-exist.yaml"
-	
+
 	// Verify the file doesn't exist
 	if _, err := os.Stat(nonExistentConfigPath); !os.IsNotExist(err) {
 		t.Fatalf("Test setup error: config file %s should not exist", nonExistentConfigPath)
@@ -638,10 +638,10 @@ func TestAOSBuilderNonExistentConfigPath(t *testing.T) {
 
 	// Test that Build method handles non-existent config files gracefully
 	// The fix is in the Build method which checks if config file exists before copying
-	
-	// For this test, we'll create a minimal test that verifies the logic 
+
+	// For this test, we'll create a minimal test that verifies the logic
 	// without running the full build (which requires Docker, etc.)
-	
+
 	// Test the specific logic: if config file doesn't exist, don't try to copy it
 	configFilePath := builder.configFilePath // This should be the non-existent file
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
@@ -651,10 +651,10 @@ func TestAOSBuilderNonExistentConfigPath(t *testing.T) {
 	} else {
 		t.Errorf("❌ Test setup error: config file should not exist")
 	}
-	
+
 	// Now test CopyAOSFiles with empty config path (should work)
 	err := builder.CopyAOSFiles(context.Background(), workspaceDir, configFilePath)
-	
+
 	// With empty config path, this should either succeed or fail for reasons other than missing config
 	if err != nil && strings.Contains(err.Error(), "no such file or directory") && strings.Contains(err.Error(), "definitely-does-not-exist.yaml") {
 		t.Errorf("❌ CopyAOSFiles still failing on non-existent config file: %v", err)

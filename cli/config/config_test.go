@@ -14,13 +14,13 @@ func TestNewConfig(t *testing.T) {
 
 func TestReadConfigFile(t *testing.T) {
 	const (
-		expectedStackSize = 3145728
+		expectedStackSize     = 3145728
 		expectedInitialMemory = 4194304
 		expectedMaximumMemory = 1073741824
-		expectedTarget = 32
-		expectedComputeLimit = "9000000000000"
-		expectedModuleFormat = "wasm32-unknown-emscripten-metering"
-		expectedAOSGitHash = "15dd81ee596518e2f44521e973b8ad1ce3ee9945"
+		expectedTarget        = 32
+		expectedComputeLimit  = "9000000000000"
+		expectedModuleFormat  = "wasm32-unknown-emscripten-metering"
+		expectedAOSGitHash    = "15dd81ee596518e2f44521e973b8ad1ce3ee9945"
 	)
 	config := ReadConfigFile("config.test.yaml")
 	if config.StackSize != expectedStackSize {
@@ -58,10 +58,10 @@ func TestToYAML(t *testing.T) {
 	}
 
 	yamlString := ToYAML(config)
-	
+
 	// Parse it back to verify the YAML is valid and contains expected values
 	parsedConfig := FromYAML(yamlString)
-	
+
 	if parsedConfig.StackSize != config.StackSize {
 		t.Errorf("Expected StackSize to be %d, got %d", config.StackSize, parsedConfig.StackSize)
 	}

@@ -21,8 +21,8 @@ func NewTextInput(label, defaultValue string, width, height int) *TextInputCompo
 	input.SetValue(defaultValue)
 	input.CharLimit = 100
 	input.Width = width - 6 // Account for panel border (4) + some padding (2)
-	input.Focus() // Auto-focus for immediate editing
-	
+	input.Focus()           // Auto-focus for immediate editing
+
 	return &TextInputComponent{
 		input:  input,
 		label:  label,
@@ -67,25 +67,25 @@ func (ti *TextInputComponent) View() string {
 		Bold(true).
 		Foreground(lipgloss.Color("#874BFD")).
 		Margin(0, 0, 1, 0)
-	
+
 	label := labelStyle.Render(ti.label)
-	
+
 	// Create input without border (let panel container handle borders)
 	inputField := ti.input.View()
-	
+
 	// Instructions
 	instructions := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#666")).
 		MarginTop(1).
 		Render("Press Enter to continue")
-	
+
 	// Combine all elements
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		label,
 		inputField,
 		instructions,
 	)
-	
+
 	return content
 }
 

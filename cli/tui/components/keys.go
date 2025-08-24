@@ -5,26 +5,26 @@ import "github.com/charmbracelet/bubbles/key"
 // KeyMap defines all key bindings for the TUI application
 type KeyMap struct {
 	// Navigation
-	Up     key.Binding
-	Down   key.Binding
-	Left   key.Binding
-	Right  key.Binding
-	
+	Up    key.Binding
+	Down  key.Binding
+	Left  key.Binding
+	Right key.Binding
+
 	// Actions
 	Enter  key.Binding
 	Select key.Binding
 	Back   key.Binding
 	Tab    key.Binding
-	
+
 	// Editing
 	Edit   key.Binding
 	Save   key.Binding
 	Cancel key.Binding
-	
+
 	// Global
-	Help   key.Binding
-	Quit   key.Binding
-	Debug  key.Binding
+	Help  key.Binding
+	Quit  key.Binding
+	Debug key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings
@@ -47,7 +47,7 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("right", "l"),
 			key.WithHelp("→/l", "move right"),
 		),
-		
+
 		// Actions
 		Enter: key.NewBinding(
 			key.WithKeys("enter"),
@@ -65,7 +65,7 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "next section"),
 		),
-		
+
 		// Editing
 		Edit: key.NewBinding(
 			key.WithKeys("e"),
@@ -79,7 +79,7 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("esc", "ctrl+c"),
 			key.WithHelp("esc", "cancel"),
 		),
-		
+
 		// Global
 		Help: key.NewBinding(
 			key.WithKeys("?"),
@@ -104,36 +104,36 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns all key bindings to be shown in the full help view
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Left, k.Right},           // Navigation
-		{k.Enter, k.Select, k.Back, k.Tab},        // Actions  
-		{k.Edit, k.Save, k.Cancel},                // Editing
-		{k.Help, k.Quit, k.Debug},                 // Global
+		{k.Up, k.Down, k.Left, k.Right},    // Navigation
+		{k.Enter, k.Select, k.Back, k.Tab}, // Actions
+		{k.Edit, k.Save, k.Cancel},         // Editing
+		{k.Help, k.Quit, k.Debug},          // Global
 	}
 }
 
 // ConfigEditKeyMap returns key bindings specific to config editing
 func ConfigEditKeyMap() KeyMap {
 	km := DefaultKeyMap()
-	
+
 	// Override some bindings for config editing context
 	km.Save = key.NewBinding(
 		key.WithKeys("ctrl+s", "enter"),
 		key.WithHelp("ctrl+s/enter", "save & build"),
 	)
-	
+
 	return km
 }
 
 // BuildRunningKeyMap returns key bindings for the build running state
 func BuildRunningKeyMap() KeyMap {
 	km := DefaultKeyMap()
-	
+
 	// Disable most actions during build
 	km.Up = key.NewBinding(key.WithDisabled())
 	km.Down = key.NewBinding(key.WithDisabled())
 	km.Select = key.NewBinding(key.WithDisabled())
 	km.Edit = key.NewBinding(key.WithDisabled())
-	
+
 	return km
 }
 
