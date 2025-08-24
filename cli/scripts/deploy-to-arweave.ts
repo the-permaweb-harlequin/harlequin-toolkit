@@ -11,7 +11,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { ANT, AOProcess, ARIO, ARIO_MAINNET_PROCESS_ID, ArweaveSigner } from '@ar.io/sdk';
 import { TurboAuthenticatedClient, TurboFactory, TurboUploadDataItemResponse } from '@ardrive/turbo-sdk';
-import { connect } from '@permaweb/aoconnect';
+import { connect, createDataItemSigner } from '@permaweb/aoconnect';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -394,7 +394,8 @@ async function main(): Promise<void> {
     let ario, ant;
     if (!CONFIG.dryRun) {
       ario = ARIO.init({
-          signer,
+        // @ts-ignore
+          signer: createDataItemSigner(wallet),
           process: new AOProcess({
               processId: CONFIG.arns.registry,
               ao: connect({CU_URL: CONFIG.network.cuUrl, MODE: 'legacy'})
@@ -403,7 +404,8 @@ async function main(): Promise<void> {
 
       const arnsRecord = await ario.getArNSRecord({name: CONFIG.arns.name});
       ant = ANT.init({
-          signer,
+        // @ts-ignore
+          signer: createDataItemSigner(wallet),
           process: new AOProcess({
               processId: arnsRecord.processId,
               ao: connect({CU_URL: CONFIG.network.cuUrl, MODE: 'legacy'})
@@ -505,18 +507,13 @@ async function main(): Promise<void> {
       console.log(chalk.yellow(`[DRYRUN] Would update ARNS undername: ${CONFIG.arns.undername}.${CONFIG.arns.name}`));
       console.log(chalk.yellow(`[DRYRUN] Would point to manifest: ${manifestId}`));
     } else {
-      console.log({
-        undername: CONFIG.arns.undername,
-        transactionId: manifestId,
-        ttlSeconds: 60,
-        tags: dataItemOptions.tags
-      })
-      await ant!.setUndernameRecord({
+
+      await ant!.setRecord({
           undername: CONFIG.arns.undername,
           transactionId: manifestId,
           ttlSeconds: 60,
-          priority: 8,
-      }, {tags: dataItemOptions.tags})
+      }, 
+    )
     }
     
     // Summary
