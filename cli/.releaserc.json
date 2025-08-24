@@ -1,0 +1,54 @@
+{
+  "branches": [
+    "main",
+    {
+      "name": "develop",
+      "prerelease": "alpha"
+    }
+  ],
+  "tagFormat": "cli-v${version}",
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    "@semantic-release/changelog",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "echo 'CLI_VERSION=${nextRelease.version}' >> $GITHUB_ENV",
+        "publishCmd": "goreleaser release --clean --config .goreleaser.yaml"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "publishCmd": "cd scripts && yarn && CLI_VERSION=${nextRelease.version} yarn deploy"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "dist/*.tar.gz",
+            "label": "Binary Archives"
+          },
+          {
+            "path": "dist/*.zip",
+            "label": "Windows Archive"
+          },
+          {
+            "path": "dist/checksums.txt",
+            "label": "Checksums"
+          }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["CHANGELOG.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ]
+  ]
+}

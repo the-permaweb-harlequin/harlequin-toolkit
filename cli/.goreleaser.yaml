@@ -1,3 +1,6 @@
+# GoReleaser v2 configuration
+version: 2
+
 project_name: harlequin
 
 # Note: For monorepo support, run from root with:
@@ -10,7 +13,7 @@ env:
 # Build configuration
 builds:
   - id: harlequin
-    main: ./cli/main.go
+    main: ./main.go
     binary: harlequin
     
     # Build for multiple platforms
@@ -38,20 +41,15 @@ builds:
     # Custom binary naming
     hooks:
       pre:
-        - cd cli && go mod tidy
-        - cd cli && go generate ./...
+        - go mod tidy
+        - go generate ./...
 
 # Archive configuration
 archives:
   - id: harlequin
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - cli/README.md
-      - LICENSE*
+      - README.md
 
 # Checksum
 checksum:
@@ -59,7 +57,7 @@ checksum:
 
 # Snapshot
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 # Changelog
 changelog:
@@ -141,3 +139,4 @@ publishers:
       CLI_VERSION="{{ .Version }}" yarn deploy
       
       echo "✅ Arweave deployment completed!"
+

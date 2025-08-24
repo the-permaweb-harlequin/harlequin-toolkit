@@ -20,23 +20,36 @@
         }
       }
     },
+    "nx-release-publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "cli",
+        "commands": [
+          "echo '🎭 Running GoReleaser for CLI release...'",
+          "goreleaser release --clean --config .goreleaser.yaml",
+          "echo '🚀 Deploying to Arweave...'",
+          "cd scripts && yarn && yarn deploy"
+        ]
+      },
+      "dependsOn": ["build"]
+    },
     "release": {
       "executor": "nx:run-commands",
       "options": {
         "cwd": "cli",
         "commands": [
-          "goreleaser release --clean --config cli/.goreleaser.yaml"
+          "goreleaser release --clean --config .goreleaser.yaml"
         ]
       },
       "configurations": {
         "snapshot": {
           "commands": [
-            "goreleaser release --clean --snapshot --config cli/.goreleaser.yaml"
+            "goreleaser release --clean --snapshot --config .goreleaser.yaml"
           ]
         },
         "dry-run": {
           "commands": [
-            "goreleaser release --clean --skip=publish --config cli/.goreleaser.yaml"
+            "goreleaser release --clean --skip=publish --config .goreleaser.yaml"
           ]
         }
       }
@@ -45,7 +58,7 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "cli",
-        "command": "goreleaser check --config cli/.goreleaser.yaml"
+        "command": "goreleaser check --config .goreleaser.yaml"
       }
     },
     "test": {

@@ -202,13 +202,13 @@ publishers:
     args: release --clean -f cli/.goreleaser.yaml
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    DAEMONGATE_API_KEY: ${{ secrets.DAEMONGATE_API_KEY }}
+    ARWEAVE_WALLET_JWK: ${{ secrets.ARWEAVE_WALLET_JWK }}
 ```
 
 ### **Required Secrets**
 ```bash
-GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx     # GitHub release access
-DAEMONGATE_API_KEY=dgk_xxxxxxxxxxxxxxxxx  # Binary hosting access
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx     # GitHub release access (automatic)
+ARWEAVE_WALLET_JWK={"kty":"RSA",...}      # Arweave wallet for deployments
 ```
 
 ## 📊 Advanced Features

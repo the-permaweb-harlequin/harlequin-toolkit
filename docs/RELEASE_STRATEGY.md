@@ -169,8 +169,8 @@ https://install_cli_harlequin.daemongate.io/releases/1.2.3/darwin/arm64
 ### GitHub Secrets
 ```bash
 # Required for releases
-NPM_TOKEN=npm_xxxxxxxxxxxxxxxx           # For SDK publishing
-DAEMONGATE_API_KEY=dgk_xxxxxxxxxxxxxxxxx  # For binary hosting
+NPM_TOKEN=npm_xxxxxxxxxxxxxxxx           # For SDK publishing (when enabled)
+ARWEAVE_WALLET_JWK={"kty":"RSA",...}     # For Arweave deployments
 ```
 
 ### Hosting Requirements

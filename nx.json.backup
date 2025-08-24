@@ -34,38 +34,6 @@
   "affected": {
     "defaultBase": "origin/main"
   },
-  "release": {
-    "projects": ["cli"],
-    "projectsRelationship": "independent",
-    "releaseTagPattern": "cli-v{version}",
-    "changelog": {
-      "workspaceChangelog": false,
-      "projectChangelogs": {
-        "cli": {
-          "createRelease": "github",
-          "entryWhenNoChanges": false,
-          "renderOptions": {
-            "authors": false,
-            "commitReferences": true,
-            "versionTitleDate": true
-          }
-        }
-      }
-    },
-    "version": {
-      "conventionalCommits": true,
-      "generatorOptions": {
-        "fallbackCurrentVersionResolver": "git-tag",
-        "currentVersionResolver": "git-tag"
-      }
-    },
-    "git": {
-      "commit": true,
-      "commitMessage": "chore(release): publish cli-v{version} [skip ci]",
-      "tag": true,
-      "tagMessage": "Release cli-v{version}"
-    }
-  },
   "generators": {
     "@nx/react": {
       "application": {
