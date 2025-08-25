@@ -12,12 +12,12 @@ export default defineConfig({
     dark: '/harlequin_mascot_dark.png',
   },
   logoText: 'Harlequin Toolkit',
-  base: '.',
+  base: '/',
   outDir: path.join(__dirname, 'dist'),
   globalStyles: path.join(__dirname, './styles/globals.css'),
   builderConfig: {
     output: {
-      inlineScripts: true,
+      inlineScripts: false,
     },
     tools: {
       rspack: {
