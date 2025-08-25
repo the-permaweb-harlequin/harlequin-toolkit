@@ -31,6 +31,13 @@
         "command": "npx eslint *.ts *.js *.mjs --cache --fix",
         "cwd": "docs"
       }
+    },
+    "publish:arweave": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run publish:arweave",
+        "cwd": "docs"
+      }
     }
   },
   "tags": ["type:documentation", "lang:typescript"]

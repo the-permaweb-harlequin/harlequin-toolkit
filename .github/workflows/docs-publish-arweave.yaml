@@ -1,5 +1,4 @@
-name: Production Deploy
-
+name: Deploy Docs to Arweave
 on:
   push:
     branches:
@@ -12,6 +11,7 @@ on:
       - 'docs/yarn.lock'
       - 'docs/tsconfig.json'
       - 'docs/tsconfig.app.json'
+      - '.github/workflows/docs-publish-arweave.yml'
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 20.x
       - run: yarn --frozen-lockfile
-      - run: yarn publish:arweave
+      - run: npx nx run docs:publish:arweave
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           VITE_GITHUB_HASH: ${{ github.sha }}
