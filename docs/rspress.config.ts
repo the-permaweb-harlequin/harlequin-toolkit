@@ -11,8 +11,8 @@ export default defineConfig({
     dark: '/harlequin_mascot_dark.png',
   },
   logoText: 'Harlequin Toolkit',
-  base: '/',
-  outDir: 'dist',
+  base: '.',
+  outDir: path.join(__dirname, 'dist'),
   globalStyles: path.join(__dirname, './styles/globals.css'),
   builderConfig: {
     output: {
