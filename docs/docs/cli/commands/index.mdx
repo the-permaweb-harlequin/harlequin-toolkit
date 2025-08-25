@@ -1,0 +1,68 @@
+import { normalizeImagePath } from 'rspress/runtime';
+
+# Commands
+
+Harlequin provides both interactive and non-interactive command modes to build AOS projects.
+
+## Interactive Mode (Default)
+
+The default behavior when running `harlequin` without arguments launches an interactive TUI:
+
+```bash
+harlequin
+```
+
+<img src={normalizeImagePath("/cli_command_select.png")} alt="cli-command-select" />
+
+This provides a guided experience with:
+- Command selection interface
+- Build type selection (AOS Flavour)
+- Entrypoint file selection (manual or auto-discovery)
+- Output directory configuration
+- Configuration review and editing
+- Real-time build progress
+
+## Non-Interactive Commands
+
+For automation and scripting, use explicit commands:
+
+### Build Command
+
+```bash
+harlequin build --entrypoint <file> [flags]
+```
+
+**Required:**
+- `--entrypoint <file>` - Path to the main Lua file
+
+**Optional:**
+- `--outputDir <dir>` - Output directory for build artifacts
+- `--configPath <file>` - Custom configuration file
+- `--debug` - Enable debug logging
+
+### Other Commands
+
+```bash
+harlequin version    # Show version information
+harlequin help       # Show help message
+```
+
+## Examples
+
+**Interactive (Recommended for Development):**
+```bash
+# Launch interactive TUI
+harlequin
+```
+
+**Non-Interactive (Good for CI/CD):**
+```bash
+# Basic build
+harlequin build --entrypoint main.lua
+
+# Build with custom output directory
+harlequin build --entrypoint src/app.lua --outputDir dist
+
+# Build with custom config and debug
+harlequin build --entrypoint main.lua --configPath custom.yaml --debug
+```
