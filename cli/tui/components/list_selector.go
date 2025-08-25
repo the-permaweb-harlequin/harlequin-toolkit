@@ -219,3 +219,16 @@ func CreateConfigActionSelector(width, height int) *ListSelectorComponent {
 
 	return NewListSelector("Configuration Review", items, width, height)
 }
+
+// CreateCommandSelector creates a selector for available commands
+func CreateCommandSelector(width, height int) *ListSelectorComponent {
+	items := []ListItem{
+		{
+			title:       "Build Project",
+			description: "Build an AOS project with interactive configuration",
+			value:       "build",
+		},
+	}
+
+	return NewListSelector("Welcome to Harlequin", items, width, height)
+}

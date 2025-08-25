@@ -11,40 +11,66 @@ import (
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/tui"
-	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/tui/components"
 )
 
-// HandleBuildCommand handles the build command with all its flags and modes
+// RunInteractiveTUI launches the interactive TUI interface
+func RunInteractiveTUI(ctx context.Context) error {
+	return tui.RunBuildTUI(ctx)
+}
+
+// HandleBuildCommand handles the non-interactive build command with all its flags and modes
 func HandleBuildCommand(ctx context.Context, args []string) {
 	// Parse flags
 	var debugMode bool
-	var projectPath string
+	var entrypoint string
+	var outputDir string
+	var configPath string
 
 	// Process arguments
-	remainingArgs := []string{}
-	for i, arg := range args {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "--debug", "-d":
 			debugMode = true
 		case "--help", "-h":
-			if err := components.ShowHelp("build"); err != nil {
-				// Fallback to basic help if something goes wrong
-				fmt.Printf("Error displaying help: %v\n", err)
-				fmt.Printf("Falling back to basic help...\n")
-				PrintBuildUsage()
-			}
+			PrintBuildUsage()
 			return
+		case "--entrypoint":
+			if i+1 >= len(args) {
+				fmt.Printf("Error: --entrypoint requires a value\n\n")
+				PrintBuildUsage()
+				os.Exit(1)
+			}
+			entrypoint = args[i+1]
+			i++ // Skip the next argument as it's the value
+		case "--outputDir":
+			if i+1 >= len(args) {
+				fmt.Printf("Error: --outputDir requires a value\n\n")
+				PrintBuildUsage()
+				os.Exit(1)
+			}
+			outputDir = args[i+1]
+			i++ // Skip the next argument as it's the value
+		case "--configPath":
+			if i+1 >= len(args) {
+				fmt.Printf("Error: --configPath requires a value\n\n")
+				PrintBuildUsage()
+				os.Exit(1)
+			}
+			configPath = args[i+1]
+			i++ // Skip the next argument as it's the value
 		default:
 			// If it starts with -, it's an unknown flag
 			if strings.HasPrefix(arg, "-") {
 				fmt.Printf("Unknown flag: %s\n\n", arg)
 				PrintBuildUsage()
 				os.Exit(1)
+			} else {
+				fmt.Printf("Unknown argument: %s\n\n", arg)
+				PrintBuildUsage()
+				os.Exit(1)
 			}
-			// Otherwise, it's a positional argument
-			remainingArgs = append(remainingArgs, arg)
 		}
-		_ = i // unused variable fix
 	}
 
 	// Enable debug mode if flag was provided
@@ -52,29 +78,40 @@ func HandleBuildCommand(ctx context.Context, args []string) {
 		debug.SetEnabled(true)
 	}
 
-	// Determine if TUI or legacy CLI mode
-	if len(remainingArgs) == 0 {
-		// No path argument - launch TUI
-		if err := tui.RunBuildTUI(ctx); err != nil {
-			fmt.Printf("Build failed: %v\n", err)
+	// Require entrypoint for non-interactive build
+	if entrypoint == "" {
+		fmt.Println("Error: --entrypoint is required for non-interactive build")
+		fmt.Println("Use 'harlequin' (without arguments) to launch the interactive TUI")
+		fmt.Println()
+		PrintBuildUsage()
+		os.Exit(1)
+	}
+
+	// Non-interactive CLI mode with explicit flags
+	handleNonInteractiveBuild(ctx, entrypoint, outputDir, configPath)
+}
+
+// handleNonInteractiveBuild handles the non-interactive CLI build mode
+func handleNonInteractiveBuild(ctx context.Context, entrypoint, outputDir, configPath string) {
+	// Load config
+	var cfg *config.Config
+	if configPath != "" {
+		// Load from specified config path
+		cfg = config.ReadConfigFile(configPath)
+		if cfg == nil {
+			fmt.Printf("Error: Failed to load config from %s\n", configPath)
 			os.Exit(1)
 		}
 	} else {
-		// Legacy CLI mode with project path
-		projectPath = remainingArgs[0]
-		handleLegacyBuild(ctx, []string{projectPath})
-	}
-}
-
-// handleLegacyBuild handles the legacy CLI build mode
-func handleLegacyBuild(ctx context.Context, args []string) {
-	projectPath := "."
-	if len(args) > 0 {
-		projectPath = args[0]
+		// Load default config
+		cfg = loadConfig()
 	}
 
-	// Load config
-	cfg := loadConfig()
+	// Set output directory if provided
+	if outputDir != "" {
+		// TODO: Update config with output directory when config supports it
+		debug.Printf("Output directory specified: %s", outputDir)
+	}
 
 	// Get current working directory as workspace
 	workspaceDir, err := os.Getwd()
@@ -91,8 +128,8 @@ func handleLegacyBuild(ctx context.Context, args []string) {
 	}
 	defer runner.Close()
 
-	// Build the project
-	if err := runner.BuildProject(ctx, projectPath); err != nil {
+	// Build the project with specified entrypoint
+	if err := runner.BuildProject(ctx, entrypoint); err != nil {
 		fmt.Printf("Build failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -118,23 +155,30 @@ func loadConfig() *config.Config {
 
 // PrintBuildUsage prints the usage information for the build command
 func PrintBuildUsage() {
-	fmt.Println("🎭 Harlequin Build Command")
+	fmt.Println("🎭 Harlequin Build Command (Non-Interactive)")
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  harlequin build [flags] [path]")
+	fmt.Println("  harlequin build --entrypoint <file> [flags]")
 	fmt.Println()
-	fmt.Println("Flags:")
-	fmt.Println("  -d, --debug     Enable debug logging for detailed output")
-	fmt.Println("  -h, --help      Show this help message")
+	fmt.Println("Required Flags:")
+	fmt.Println("  --entrypoint <file>    Path to the main Lua file to build")
 	fmt.Println()
-	fmt.Println("Arguments:")
-	fmt.Println("  [path]          Project path (optional, defaults to interactive TUI)")
+	fmt.Println("Optional Flags:")
+	fmt.Println("  --outputDir <dir>      Directory to output build artifacts")
+	fmt.Println("  --configPath <file>    Path to custom configuration file")
+	fmt.Println("  -d, --debug            Enable debug logging for detailed output")
+	fmt.Println("  -h, --help             Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  harlequin build                    # Launch interactive TUI")
-	fmt.Println("  harlequin build --debug            # TUI with debug logging")
-	fmt.Println("  harlequin build ./my-project       # Direct build (legacy mode)")
-	fmt.Println("  harlequin build -d ./my-project    # Direct build with debug")
+	fmt.Println("  harlequin build --entrypoint main.lua")
+	fmt.Println("  harlequin build --entrypoint src/app.lua --outputDir dist")
+	fmt.Println("  harlequin build --entrypoint main.lua --configPath custom.yaml")
+	fmt.Println("  harlequin build --entrypoint main.lua --debug")
+	fmt.Println("  harlequin build --entrypoint main.lua --outputDir dist --debug")
+	fmt.Println()
+	fmt.Println("Interactive Mode:")
+	fmt.Println("  For interactive builds with guided configuration:")
+	fmt.Println("  harlequin                          # Launch interactive TUI")
 	fmt.Println()
 	fmt.Println("Debug Mode:")
 	fmt.Println("  When --debug is enabled, you'll see detailed logging including:")
@@ -144,5 +188,5 @@ func PrintBuildUsage() {
 	fmt.Println("  • Cleanup operations")
 	fmt.Println()
 	fmt.Println("Environment Variable Alternative:")
-	fmt.Println("  HARLEQUIN_DEBUG=true harlequin build")
+	fmt.Println("  HARLEQUIN_DEBUG=true harlequin build --entrypoint <file>")
 }

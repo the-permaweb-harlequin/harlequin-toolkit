@@ -21,7 +21,8 @@ import (
 type ViewState int
 
 const (
-	ViewBuildTypeSelection ViewState = iota
+	ViewCommandSelection ViewState = iota
+	ViewBuildTypeSelection
 	ViewEntrypointSelection
 	ViewOutputDirectory
 	ViewConfigReview
@@ -39,16 +40,17 @@ type Model struct {
 	ctx   context.Context
 
 	// Bubbles components
-	keyMap         components.KeyMap
-	help           help.Model
-	buildSelector  *components.ListSelectorComponent
-	outputInput    *components.TextInputComponent
-	actionSelector *components.ListSelectorComponent
-	filePicker     *components.FilePickerComponent
-	fileSelector   *components.ListSelectorComponent // For automatic file discovery
-	configForm     *components.ConfigFormComponent
-	progress       *components.ProgressComponent
-	result         *components.ResultComponent
+	keyMap          components.KeyMap
+	help            help.Model
+	commandSelector *components.ListSelectorComponent
+	buildSelector   *components.ListSelectorComponent
+	outputInput     *components.TextInputComponent
+	actionSelector  *components.ListSelectorComponent
+	filePicker      *components.FilePickerComponent
+	fileSelector    *components.ListSelectorComponent // For automatic file discovery
+	configForm      *components.ConfigFormComponent
+	progress        *components.ProgressComponent
+	result          *components.ResultComponent
 
 	// Layout
 	width  int
@@ -95,6 +97,9 @@ func NewModel(ctx context.Context) *Model {
 	keyMap := components.DefaultKeyMap()
 	helpModel := help.New()
 
+	// Create command selector
+	commandSelector := components.CreateCommandSelector(40, 10)
+
 	// Create build type selector
 	buildSelector := components.CreateBuildTypeSelector(40, 10)
 
@@ -102,19 +107,21 @@ func NewModel(ctx context.Context) *Model {
 	progress := components.NewProgressComponent(40, 10)
 
 	return &Model{
-		state:         ViewBuildTypeSelection,
-		flow:          &BuildFlow{},
-		ctx:           ctx,
-		keyMap:        keyMap,
-		help:          helpModel,
-		buildSelector: buildSelector,
-		progress:      progress,
+		state:           ViewCommandSelection,
+		flow:            &BuildFlow{},
+		ctx:             ctx,
+		keyMap:          keyMap,
+		help:            helpModel,
+		commandSelector: commandSelector,
+		buildSelector:   buildSelector,
+		progress:        progress,
 	}
 }
 
 // Init implements the Bubble Tea model interface
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
+		m.commandSelector.Init(),
 		m.buildSelector.Init(),
 		tea.EnterAltScreen,
 	)
@@ -144,6 +151,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// State-specific handling
 		switch m.state {
+		case ViewCommandSelection:
+			return m.updateCommandSelection(msg)
 		case ViewBuildTypeSelection:
 			return m.updateBuildTypeSelection(msg)
 		case ViewEntrypointSelection:
@@ -226,6 +235,8 @@ func (m *Model) View() string {
 	// Create main content based on state
 	var content string
 	switch m.state {
+	case ViewCommandSelection:
+		content = m.viewCommandSelection()
 	case ViewBuildTypeSelection:
 		content = m.viewBuildTypeSelection()
 	case ViewEntrypointSelection:
@@ -287,6 +298,9 @@ func (m *Model) resizeComponents() {
 	// Use the same width calculation as createTwoPanelLayout
 	actualPanelWidth := basePanelWidth - 2 // Match the layout's panel width
 
+	if m.commandSelector != nil {
+		m.commandSelector.SetSize(actualPanelWidth, panelHeight)
+	}
 	if m.buildSelector != nil {
 		m.buildSelector.SetSize(actualPanelWidth, panelHeight)
 	}
@@ -355,6 +369,8 @@ func (m *Model) getContentHeight() int {
 // getViewTitle returns the title for the current view
 func (m *Model) getViewTitle() string {
 	switch m.state {
+	case ViewCommandSelection:
+		return "Select Command"
 	case ViewBuildTypeSelection:
 		return "Select Build Configuration"
 	case ViewEntrypointSelection:
@@ -372,7 +388,37 @@ func (m *Model) getViewTitle() string {
 	case ViewBuildError:
 		return "Build Failed"
 	}
-	return "Harlequin Build"
+	return "Harlequin"
+}
+
+// viewCommandSelection renders the command selection view
+func (m *Model) viewCommandSelection() string {
+	if m.commandSelector == nil {
+		return "Loading commands..."
+	}
+
+	leftPanel := m.commandSelector.View()
+
+	// Right panel with description
+	selected := m.commandSelector.GetSelected()
+	description := "Welcome to Harlequin! Start by building your AOS project."
+	if selected != nil {
+		switch selected.Value() {
+		case "build":
+			description = "Interactive project building with guided configuration.\n\nThis will take you through:\n• Build type selection\n• Entrypoint file selection\n• Output directory configuration\n• Build configuration review\n• Actual build process\n\nThe TUI will guide you step-by-step through the entire build process with helpful descriptions and validation."
+		default:
+			description = selected.Description()
+		}
+	}
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Getting Started",
+		description,
+		m.getPanelWidth()-2, // Match the panel container width
+		0,                   // Height not used anymore - panel sizes naturally
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
 }
 
 // viewBuildTypeSelection renders the build type selection view
@@ -598,8 +644,10 @@ func (m *Model) createControls() string {
 	var controls []string
 
 	switch m.state {
-	case ViewBuildTypeSelection:
+	case ViewCommandSelection:
 		controls = []string{"↑/↓ Navigate", "Enter Select", "q Quit"}
+	case ViewBuildTypeSelection:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
 	case ViewEntrypointSelection:
 		if m.useFilePicker {
 			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
@@ -653,6 +701,28 @@ Maximum Memory: %.1f MB`,
 }
 
 // Update handlers for each state
+
+func (m *Model) updateCommandSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the list component first
+	model, cmd := m.commandSelector.Update(tea.Msg(msg))
+	if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+		m.commandSelector = newSelector
+	}
+
+	// Check if enter was pressed after updating the component
+	if key.Matches(msg, m.keyMap.Enter) {
+		if selected := m.commandSelector.GetSelected(); selected != nil {
+			switch selected.Value() {
+			case "build":
+				// Go to build type selection
+				m.state = ViewBuildTypeSelection
+				return m, nil
+			}
+		}
+	}
+
+	return m, cmd
+}
 
 func (m *Model) updateBuildTypeSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Pass all messages directly to the list component first
@@ -833,6 +903,8 @@ func (m *Model) updateBuildResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleBack() (tea.Model, tea.Cmd) {
 	switch m.state {
+	case ViewBuildTypeSelection:
+		m.state = ViewCommandSelection
 	case ViewEntrypointSelection:
 		m.state = ViewBuildTypeSelection
 	case ViewOutputDirectory:

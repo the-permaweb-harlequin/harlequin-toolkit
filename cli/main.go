@@ -22,14 +22,19 @@ func main() {
 	// Ensure debug log file is closed on exit
 	defer debug.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// If no arguments provided, launch interactive TUI
 	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+		if err := cmd.RunInteractiveTUI(ctx); err != nil {
+			fmt.Printf("TUI failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	command := os.Args[1]
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
 
 	switch command {
 	case "build":
@@ -57,21 +62,22 @@ func printUsage() {
 	fmt.Printf("Version: %s\n", version)
 	fmt.Println()
 	fmt.Println("Usage:")
-	fmt.Println("  harlequin <command> [arguments]")
+	fmt.Println("  harlequin                   Launch interactive TUI (default)")
+	fmt.Println("  harlequin <command> [args]  Run specific command")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  build [flags] [path]    Build project (interactive TUI or legacy CLI)")
-	fmt.Println("  version                 Show version information")
-	fmt.Println("  help                    Show this help message")
+	fmt.Println("  build --entrypoint <file> [flags]  Build project non-interactively")
+	fmt.Println("  version                             Show version information")
+	fmt.Println("  help                                Show this help message")
 	fmt.Println()
 	fmt.Println("Examples:")
-	fmt.Println("  harlequin build                    # Interactive TUI")
-	fmt.Println("  harlequin build --debug            # Interactive TUI with debug logging")
-	fmt.Println("  harlequin build ./my-project       # Legacy CLI mode")
-	fmt.Println("  harlequin build --debug ./project  # Legacy CLI with debug logging")
-	fmt.Println("  harlequin version                  # Show version information")
+	fmt.Println("  harlequin                                    # Launch interactive TUI")
+	fmt.Println("  harlequin build --entrypoint main.lua       # Non-interactive build")
+	fmt.Println("  harlequin build --entrypoint main.lua --debug  # Build with debug")
+	fmt.Println("  harlequin version                            # Show version information")
 	fmt.Println()
-	fmt.Println("The interactive TUI provides a guided experience for:")
+	fmt.Println("Interactive TUI (Default Mode):")
+	fmt.Println("  The TUI provides a guided experience for:")
 	fmt.Println("  • Selecting build type (AOS Flavour)")
 	fmt.Println("  • Choosing entrypoint files")
 	fmt.Println("  • Configuring output directories")
