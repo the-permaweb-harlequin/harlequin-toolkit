@@ -5,13 +5,20 @@ export default defineConfig({
   root: path.join(__dirname, 'docs'),
   title: 'Harlequin Toolkit',
   description: 'A comprehensive toolkit for building on the Permaweb',
-  icon: '/rspress-icon.png',
+  icon: '/harlequin_mascot.png',
   logo: {
-    light: '/rspress-light-logo.png',
-    dark: '/rspress-dark-logo.png',
+    light: '/harlequin_mascot.png',
+    dark: '/harlequin_mascot_dark.png',
   },
+  logoText: 'Harlequin Toolkit',
   base: '/',
   outDir: 'dist',
+  globalStyles: path.join(__dirname, './styles/globals.css'),
+  builderConfig: {
+    output: {
+      assetPrefix: '/public/',
+    },
+  },
   themeConfig: {
     socialLinks: [
       {
@@ -22,38 +29,11 @@ export default defineConfig({
     ],
     nav: [
       {
-        text: 'Guide',
-        link: '/guide/',
-      },
-      {
         text: 'CLI',
         link: '/cli/',
       },
-      {
-        text: 'SDK',
-        link: '/sdk/',
-      },
-      {
-        text: 'App',
-        link: '/app/',
-      },
     ],
     sidebar: {
-      '/guide/': [
-        {
-          text: 'Getting Started',
-          items: [
-            {
-              text: 'Introduction',
-              link: '/guide/',
-            },
-            {
-              text: 'Installation',
-              link: '/guide/installation',
-            },
-          ],
-        },
-      ],
       '/cli/': [
         {
           text: 'CLI Documentation',
@@ -63,38 +43,13 @@ export default defineConfig({
               link: '/cli/',
             },
             {
+              text: 'Installation',
+              link: '/cli/installation',
+            },
+            {
               text: 'Commands',
               link: '/cli/commands',
-            },
-          ],
-        },
-      ],
-      '/sdk/': [
-        {
-          text: 'SDK Documentation',
-          items: [
-            {
-              text: 'Overview',
-              link: '/sdk/',
-            },
-            {
-              text: 'API Reference',
-              link: '/sdk/api',
-            },
-          ],
-        },
-      ],
-      '/app/': [
-        {
-          text: 'App Documentation',
-          items: [
-            {
-              text: 'Overview',
-              link: '/app/',
-            },
-            {
-              text: 'Components',
-              link: '/app/components',
+              items: ['/cli/commands/build'],
             },
           ],
         },

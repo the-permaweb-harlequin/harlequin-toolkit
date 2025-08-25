@@ -1,54 +1,23 @@
 # CLI Overview
 
-The Harlequin CLI is a powerful command-line tool for building and deploying applications to the Permaweb.
+The Harlequin CLI is a powerful command-line tool for building and deploying AO processes.
 
 ## Features
 
-- **Build System**: Compile Lua applications for AOS
-- **Deployment**: Deploy to Arweave with ease
-- **Configuration Management**: Manage project settings
-- **Development Tools**: Hot reload and debugging support
+- **Build System**: Compile flavored AOS processes
+- **Deployment**: Deploy to AO with ease
+- **Configuration Management**: Guided configuration management
 
 ## Quick Start
 
+Build your process
+
 ```bash
-# Initialize a new project
-harlequin init my-project
-
-# Build your application
 harlequin build
-
-# Deploy to Arweave
-harlequin deploy
 ```
 
 ## Available Commands
 
-| Command  | Description                              |
-| -------- | ---------------------------------------- |
-| `init`   | Initialize a new Harlequin project       |
-| `build`  | Build your application for deployment    |
-| `deploy` | Deploy your application to Arweave       |
-| `dev`    | Start development server with hot reload |
-| `config` | Manage project configuration             |
-
-## Configuration
-
-The CLI uses a `harlequin.yaml` configuration file:
-
-```yaml
-# harlequin.yaml
-name: my-app
-version: 1.0.0
-build:
-  target: aos
-  entry: src/main.lua
-deploy:
-  network: mainnet
-```
-
-## Next Steps
-
-- [Command Reference](/cli/commands) - Detailed command documentation
-- [Configuration Guide](/cli/configuration) - Advanced configuration options
-- [Examples](/cli/examples) - Sample projects and use cases
+| Command | Description                           |
+| ------- | ------------------------------------- |
+| `build` | Build your application for deployment |
