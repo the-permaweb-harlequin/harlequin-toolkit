@@ -15,11 +15,7 @@ export default defineConfig({
   base: '.',
   outDir: path.join(__dirname, 'dist'),
   globalStyles: path.join(__dirname, './styles/globals.css'),
-  builderConfig: {
-    output: {
-      assetPrefix: '/public/',
-    },
-  },
+  builderConfig: {},
   themeConfig: {
     socialLinks: [
       {
