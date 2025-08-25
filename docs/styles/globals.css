@@ -1,0 +1,111 @@
+:root {
+  /* Harlequin Brand Colors */
+  --red-dark: #902f17;
+  --red-medium: #93513a;
+  --red-deep: #702411;
+  --black-true: #191913;
+  --black-warm: #564f41;
+  --black-brown: #392f25;
+  --skin-light: #b99a77;
+  --skin-medium: #a58163;
+  --skin-dark: #796b57;
+  --beige-light: #efdec2;
+  --beige-medium: #d1b592;
+  --beige-dark: #dfcaac;
+}
+
+/* Light Theme (Default) */
+:root {
+  --rp-c-brand: var(--red-dark);
+  --rp-c-brand-light: var(--red-medium);
+  --rp-c-brand-lighter: var(--red-medium);
+  --rp-c-text-1: var(--black-true);
+  --rp-c-text-2: var(--black-warm);
+  --rp-c-text-3: var(--black-brown);
+  --rp-c-bg: var(--beige-light);
+  --rp-c-bg-soft: var(--beige-medium);
+  --rp-c-bg-mute: var(--beige-dark);
+  --rp-c-divider: var(--red-medium);
+  --rp-c-divider-light: var(--beige-medium);
+  --rp-c-border: var(--red-medium);
+  --rp-c-gutter: var(--beige-medium);
+  --rp-nav-bg-color: var(--beige-light);
+  --rp-sidebar-bg-color: var(--beige-light);
+  --rp-c-bg-navbar: var(--beige-light);
+  --rp-c-warning: var(--red-medium);
+  --rp-c-tip: var(--beige-medium);
+  --rp-c-danger: var(--red-dark);
+}
+
+/* Dark Theme */
+[data-theme='dark'] {
+  --rp-c-text-1: var(--beige-light);
+  --rp-c-text-2: var(--beige-medium);
+  --rp-c-text-3: var(--beige-dark);
+  --rp-c-bg: var(--black-true);
+  --rp-c-bg-soft: var(--black-warm);
+  --rp-c-bg-mute: var(--black-brown);
+  --rp-nav-bg-color: var(--black-true);
+  --rp-sidebar-bg-color: var(--black-true);
+  --rp-c-bg-navbar: var(--black-true);
+}
+
+/* Code blocks - always dark in both themes */
+:root,
+[data-theme='dark'],
+[data-theme='light'] {
+  --rp-code-bg: var(--black-brown);
+  --rp-code-color: var(--beige-light);
+  --rp-code-inline-bg: var(--black-brown);
+  --rp-code-inline-color: var(--beige-light);
+  --rp-code-block-bg: var(--black-brown);
+  --rp-code-block-color: var(--beige-light);
+  --rp-code-line-highlight-color: var(--red-medium);
+}
+
+/* Alternative selectors - RSPress might use different attributes */
+html[data-theme='dark'],
+.dark,
+[theme='dark'] {
+  --rp-c-text-1: var(--beige-light);
+  --rp-c-text-2: var(--beige-medium);
+  --rp-c-text-3: var(--beige-dark);
+  --rp-c-bg: var(--black-true);
+  --rp-c-bg-soft: var(--black-warm);
+  --rp-c-bg-mute: var(--black-brown);
+  --rp-nav-bg-color: var(--black-true);
+  --rp-sidebar-bg-color: var(--black-true);
+  --rp-c-bg-navbar: var(--black-true);
+}
+
+/* Custom Scrollbar Styling */
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--rp-c-bg-soft);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--rp-c-border);
+  border-radius: 4px;
+  border: 1px solid var(--rp-c-bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--rp-c-border);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--rp-c-bg);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rp-c-border) var(--rp-c-bg-soft);
+}

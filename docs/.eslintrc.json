@@ -1,0 +1,11 @@
+{
+  "extends": ["../.eslintrc.json"],
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "rules": {
+    // Docs-specific rules if needed
+  },
+  "ignorePatterns": ["dist/", "node_modules/"]
+}
