@@ -24,7 +24,7 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,6 +87,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ARWEAVE_WALLET_JWK: ${{ secrets.ARWEAVE_WALLET_JWK }}
+          ARNS_NAME: ${{ vars.ARNS_NAME }}
+          ARNS_UNDERNAME: ${{ vars.INSTALL_CLI_UNDERNAME }}
 
       - name: Dry Run
         if: inputs.dry_run

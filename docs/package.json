@@ -7,12 +7,14 @@
     "dev": "rspress dev",
     "format": "cd .. && npx prettier --write docs/ --ignore-path .gitignore",
     "lint": "cd .. && npx eslint docs/ --cache --fix",
-    "preview": "rspress preview"
+    "preview": "rspress preview",
+    "publish:arweave": "yarn build && permaweb-deploy --arns-name $VITE_ARNS_NAME --undername $VITE_UNDERNAME"
   },
   "dependencies": {
     "rspress": "^1.40.2"
   },
   "devDependencies": {
-    "@types/node": "^18.11.17"
+    "@types/node": "^18.11.17",
+    "permaweb-deploy": "^2.5.1"
   }
 }
