@@ -65,7 +65,7 @@ func (ti *TextInputComponent) View() string {
 	// Create label
 	labelStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#902f17")).
 		Margin(0, 0, 1, 0)
 
 	label := labelStyle.Render(ti.label)
@@ -75,7 +75,7 @@ func (ti *TextInputComponent) View() string {
 
 	// Instructions
 	instructions := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666")).
+		Foreground(lipgloss.Color("#564f41")).
 		MarginTop(1).
 		Render("Press Enter to continue")
 

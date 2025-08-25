@@ -255,7 +255,7 @@ func (m *Model) View() string {
 	// Create bordered container that fits the terminal with some margin
 	container := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
+		BorderForeground(lipgloss.Color("#902f17")).
 		Padding(0, 1).
 		Width(containerWidth).
 		Render(mainLayout)

@@ -97,7 +97,7 @@ func (p *ProgressComponent) View() string {
 	if p.title != "" {
 		titleStyle := lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#874BFD")).
+			Foreground(lipgloss.Color("#902f17")).
 			Margin(0, 0, 1, 0)
 		content += titleStyle.Render(p.title) + "\n"
 	}
@@ -124,7 +124,7 @@ func (p *ProgressComponent) View() string {
 	// Create bordered panel
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
+		BorderForeground(lipgloss.Color("#564f41")).
 		Padding(0, 1).
 		Width(p.width).
 		Height(p.height).
@@ -160,7 +160,7 @@ func (p *ProgressComponent) ViewContent() string {
 	if p.title != "" {
 		titleStyle := lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#874BFD")).
+			Foreground(lipgloss.Color("#902f17")).
 			Margin(0, 0, 1, 0)
 		content += titleStyle.Render(p.title) + "\n"
 	}

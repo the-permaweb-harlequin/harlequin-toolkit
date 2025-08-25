@@ -270,7 +270,7 @@ func (cf *ConfigFormComponent) View() string {
 	wasmLabel := "WASM Target"
 	if cf.focused == -1 {
 		wasmLabel = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#874BFD")).
+			Foreground(lipgloss.Color("#902f17")).
 			Bold(true).
 			Render("WASM Target")
 	}
@@ -281,7 +281,7 @@ func (cf *ConfigFormComponent) View() string {
 
 	if cf.wasmTarget == 0 {
 		wasm32Style = wasm32Style.
-			Background(lipgloss.Color("#874BFD")).
+			Background(lipgloss.Color("#902f17")).
 			Foreground(lipgloss.Color("#FFFFFF"))
 		wasm64Style = wasm64Style.
 			Background(lipgloss.Color("#444")).
@@ -291,7 +291,7 @@ func (cf *ConfigFormComponent) View() string {
 			Background(lipgloss.Color("#444")).
 			Foreground(lipgloss.Color("#AAA"))
 		wasm64Style = wasm64Style.
-			Background(lipgloss.Color("#874BFD")).
+			Background(lipgloss.Color("#902f17")).
 			Foreground(lipgloss.Color("#FFFFFF"))
 	}
 
@@ -313,9 +313,9 @@ func (cf *ConfigFormComponent) View() string {
 		Height(1)
 
 	if cf.focused == -1 {
-		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#874BFD"))
+		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#902f17"))
 	} else {
-		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#666"))
+		wasmBorderStyle = wasmBorderStyle.BorderForeground(lipgloss.Color("#564f41"))
 	}
 
 	rows = append(rows, wasmBorderStyle.Render(wasmRow))
@@ -327,7 +327,7 @@ func (cf *ConfigFormComponent) View() string {
 		label := field.label
 		if cf.focused == i {
 			label = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#874BFD")).
+				Foreground(lipgloss.Color("#902f17")).
 				Bold(true).
 				Render(label)
 		}
@@ -342,9 +342,9 @@ func (cf *ConfigFormComponent) View() string {
 			Height(1)
 
 		if cf.focused == i {
-			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#874BFD"))
+			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#902f17"))
 		} else {
-			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#666"))
+			borderStyle = borderStyle.BorderForeground(lipgloss.Color("#564f41"))
 		}
 
 		rows = append(rows, borderStyle.Render(inputRow))
@@ -370,16 +370,16 @@ func (cf *ConfigFormComponent) View() string {
 	if cf.isInButtons {
 		if cf.selectedButton == 0 {
 			saveStyle = saveStyle.
-				Foreground(lipgloss.Color("#874BFD")).
+				Foreground(lipgloss.Color("#902f17")).
 				Bold(true).
-				BorderForeground(lipgloss.Color("#874BFD"))
-			cancelStyle = cancelStyle.BorderForeground(lipgloss.Color("#666"))
+				BorderForeground(lipgloss.Color("#902f17"))
+			cancelStyle = cancelStyle.BorderForeground(lipgloss.Color("#564f41"))
 		} else {
-			saveStyle = saveStyle.BorderForeground(lipgloss.Color("#666"))
+			saveStyle = saveStyle.BorderForeground(lipgloss.Color("#564f41"))
 			cancelStyle = cancelStyle.
-				Foreground(lipgloss.Color("#874BFD")).
+				Foreground(lipgloss.Color("#902f17")).
 				Bold(true).
-				BorderForeground(lipgloss.Color("#874BFD"))
+				BorderForeground(lipgloss.Color("#902f17"))
 		}
 	} else {
 		saveStyle = saveStyle.BorderForeground(lipgloss.Color("#666"))

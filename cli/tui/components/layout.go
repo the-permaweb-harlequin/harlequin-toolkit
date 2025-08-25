@@ -14,35 +14,35 @@ func NewLayoutUtils() *LayoutUtils {
 
 // Common styles
 var (
-	HeaderStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#874BFD")).
-			Align(lipgloss.Center).
-			Height(2)
+		HeaderStyle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#902f17")).
+		Align(lipgloss.Center).
+		Height(2)
 
 	PanelStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#666")).
+			BorderForeground(lipgloss.Color("#564f41")).
 			Padding(0, 1)
 
-	LeftPanelStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#666")).
-			Padding(0, 1)
+		LeftPanelStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#564f41")).
+		Padding(0, 1)
 
 	RightPanelStyle = lipgloss.NewStyle().
 			Padding(0, 1)
 
-	ControlsStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#666")).
-			Align(lipgloss.Center).
-			Height(2)
+		ControlsStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#564f41")).
+		Align(lipgloss.Center).
+		Height(2)
 
-	ContainerStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#874BFD")).
-			Padding(0, 1).
-			Width(90)
+		ContainerStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#902f17")).
+		Padding(0, 1).
+		Width(90)
 )
 
 // CreateHeader creates a centered header with the given title and available width
@@ -123,12 +123,12 @@ func (l *LayoutUtils) GetPanelWidth() int {
 
 // Description styles
 var (
-	DescriptionHeaderStyle = lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("#874BFD"))
+		DescriptionHeaderStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#902f17"))
 
-	DescriptionBodyStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FAFAFA"))
+		DescriptionBodyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#efdec2"))
 )
 
 // CreateDescription creates a formatted description panel with header and body
@@ -155,12 +155,12 @@ func CreateHeader(title string, width int) string {
 // CreateControls creates a controls panel (standalone function)
 func CreateControls(controls []string, width int) string {
 	controlsText := lipgloss.JoinHorizontal(lipgloss.Left,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#666")).Render(" • "),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#564f41")).Render(" • "),
 	)
 
 	for i, control := range controls {
 		if i > 0 {
-			controlsText += lipgloss.NewStyle().Foreground(lipgloss.Color("#666")).Render(" • ")
+			controlsText += lipgloss.NewStyle().Foreground(lipgloss.Color("#564f41")).Render(" • ")
 		}
 		controlsText += control
 	}
@@ -174,11 +174,11 @@ func CreateControls(controls []string, width int) string {
 func CreateDescriptionPanel(title, description string, width, height int) string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#902f17")).
 		Padding(0, 0, 1, 0)
 
 	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA"))
+		Foreground(lipgloss.Color("#efdec2"))
 
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		titleStyle.Render(title),

@@ -64,10 +64,10 @@ func (r *ResultComponent) ViewPanel() string {
 
 	if r.resultType == ResultSuccess {
 		icon = "✅"
-		iconColor = lipgloss.Color("#00FF00")
+		iconColor = lipgloss.Color("#93513a")
 	} else {
 		icon = "❌"
-		iconColor = lipgloss.Color("#FF0000")
+		iconColor = lipgloss.Color("#902f17")
 	}
 
 	// Create content with icon and message
@@ -76,13 +76,13 @@ func (r *ResultComponent) ViewPanel() string {
 		Bold(true)
 
 	exitButtonStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#efdec2")).
+		Background(lipgloss.Color("#902f17")).
 		Bold(true).
 		Padding(0, 2).
 		Margin(2, 0, 0, 0).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
+		BorderForeground(lipgloss.Color("#902f17")).
 		Align(lipgloss.Center)
 
 	content := fmt.Sprintf("%s\n\n%s\n\n%s",
@@ -92,7 +92,7 @@ func (r *ResultComponent) ViewPanel() string {
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
+		BorderForeground(lipgloss.Color("#564f41")).
 		Padding(1, 1).
 		Width(r.width).
 		Height(r.height).
@@ -109,7 +109,7 @@ func (r *ResultComponent) ViewDetails() string {
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666")).
+		BorderForeground(lipgloss.Color("#564f41")).
 		Padding(1, 1).
 		Width(r.width).
 		Height(r.height).
@@ -252,10 +252,10 @@ func (r *ResultComponent) ViewPanelContent() string {
 
 	if r.resultType == ResultSuccess {
 		icon = "✅"
-		iconColor = lipgloss.Color("#00FF00")
+		iconColor = lipgloss.Color("#93513a")
 	} else {
 		icon = "❌"
-		iconColor = lipgloss.Color("#FF0000")
+		iconColor = lipgloss.Color("#902f17")
 	}
 
 	// Create content with icon and message
@@ -264,13 +264,13 @@ func (r *ResultComponent) ViewPanelContent() string {
 		Bold(true)
 
 	exitButtonStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#efdec2")).
+		Background(lipgloss.Color("#902f17")).
 		Bold(true).
 		Padding(0, 2).
 		Margin(2, 0, 0, 0).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#874BFD")).
+		BorderForeground(lipgloss.Color("#902f17")).
 		Align(lipgloss.Center)
 
 	content := fmt.Sprintf("%s\n\n%s\n\n%s",

@@ -22,13 +22,13 @@ func NewFilePicker(width, height int) *FilePickerComponent {
 	fp := filepicker.New()
 	fp.AllowedTypes = []string{".lua"}
 	fp.CurrentDirectory = "."
-	fp.Styles.Cursor = fp.Styles.Cursor.Foreground(lipgloss.Color("#874BFD"))
-	fp.Styles.Symlink = fp.Styles.Symlink.Foreground(lipgloss.Color("#666"))
-	fp.Styles.Directory = fp.Styles.Directory.Foreground(lipgloss.Color("#04B575"))
-	fp.Styles.File = fp.Styles.File.Foreground(lipgloss.Color("#FAFAFA"))
-	fp.Styles.Permission = fp.Styles.Permission.Foreground(lipgloss.Color("#666"))
-	fp.Styles.Selected = fp.Styles.Selected.Foreground(lipgloss.Color("#874BFD")).Bold(true)
-	fp.Styles.FileSize = fp.Styles.FileSize.Foreground(lipgloss.Color("#666"))
+	fp.Styles.Cursor = fp.Styles.Cursor.Foreground(lipgloss.Color("#902f17"))
+	fp.Styles.Symlink = fp.Styles.Symlink.Foreground(lipgloss.Color("#564f41"))
+	fp.Styles.Directory = fp.Styles.Directory.Foreground(lipgloss.Color("#93513a"))
+	fp.Styles.File = fp.Styles.File.Foreground(lipgloss.Color("#efdec2"))
+	fp.Styles.Permission = fp.Styles.Permission.Foreground(lipgloss.Color("#564f41"))
+	fp.Styles.Selected = fp.Styles.Selected.Foreground(lipgloss.Color("#902f17")).Bold(true)
+	fp.Styles.FileSize = fp.Styles.FileSize.Foreground(lipgloss.Color("#564f41"))
 
 	return &FilePickerComponent{
 		filepicker: fp,
@@ -91,11 +91,11 @@ func (fpc *FilePickerComponent) View() string {
 	// Add title and instructions
 	title := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#902f17")).
 		Render("Select Entrypoint File")
 
 	instructions := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666")).
+		Foreground(lipgloss.Color("#564f41")).
 		Render("Navigate with ↑/↓, Enter directories with →, Select .lua files with Enter")
 
 	// Combine title, instructions, and file picker

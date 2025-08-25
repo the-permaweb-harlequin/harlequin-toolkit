@@ -36,11 +36,11 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 	// Create delegate for custom styling
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
-		Foreground(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#902f17")).
 		Bold(true).
 		Underline(true)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
-		Foreground(lipgloss.Color("#666"))
+		Foreground(lipgloss.Color("#564f41"))
 
 	// Create the list model
 	listModel := list.New(listItems, delegate, width, height)
@@ -48,7 +48,7 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 	listModel.SetShowStatusBar(false)
 	listModel.SetFilteringEnabled(true) // Enable for keyboard navigation
 	listModel.Styles.Title = listModel.Styles.Title.
-		Foreground(lipgloss.Color("#874BFD")).
+		Foreground(lipgloss.Color("#902f17")).
 		Background(lipgloss.Color("")).
 		Bold(true).
 		Padding(0, 0, 1, 0)
