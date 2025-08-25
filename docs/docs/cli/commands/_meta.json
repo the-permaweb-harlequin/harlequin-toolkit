@@ -3,5 +3,10 @@
     "text": "Build",
     "link": "/cli/commands/build",
     "activeMatch": "/cli/commands/build"
+  },
+  {
+    "text": "Lua Utils",
+    "link": "/cli/commands/lua-utils",
+    "activeMatch": "/cli/commands/lua-utils"
   }
 ]

@@ -2,7 +2,7 @@ import { normalizeImagePath } from 'rspress/runtime';
 
 # Commands
 
-Harlequin provides both interactive and non-interactive command modes to build AOS projects.
+Harlequin provides both interactive and non-interactive command modes for building AOS projects and working with Lua files.
 
 ## Interactive Mode (Default)
 
@@ -15,18 +15,20 @@ harlequin
 <img src={normalizeImagePath("/cli_command_select.png")} alt="cli-command-select" />
 
 This provides a guided experience with:
-- Command selection interface
-- Build type selection (AOS Flavour)
-- Entrypoint file selection (manual or auto-discovery)
-- Output directory configuration
-- Configuration review and editing
-- Real-time build progress
+- **Command selection interface** - Choose between Build Project and Lua Utils
+- **Build type selection** (AOS Flavour) - For build commands
+- **Entrypoint file selection** - Manual or auto-discovery file picker
+- **Output directory configuration** - Customizable output paths
+- **Configuration review and editing** - Review and modify build settings
+- **Real-time progress** - Live feedback during build/bundle operations
 
 ## Non-Interactive Commands
 
 For automation and scripting, use explicit commands:
 
 ### Build Command
+
+Build AOS projects with WebAssembly output:
 
 ```bash
 harlequin build --entrypoint <file> [flags]
@@ -38,6 +40,29 @@ harlequin build --entrypoint <file> [flags]
 **Optional:**
 - `--outputDir <dir>` - Output directory for build artifacts
 - `--configPath <file>` - Custom configuration file
+- `--debug` - Enable debug logging
+
+### Lua Utils Commands
+
+Bundle and process Lua files:
+
+```bash
+harlequin lua-utils <command> [flags]
+```
+
+**Available Commands:**
+- `bundle` - Bundle multiple Lua files into a single executable
+
+**Bundle Command:**
+```bash
+harlequin lua-utils bundle --entrypoint <file> [flags]
+```
+
+**Required:**
+- `--entrypoint <file>` - Path to the main Lua file to bundle
+
+**Optional:**
+- `--outputPath <file>` - Output path for bundled file
 - `--debug` - Enable debug logging
 
 ### Other Commands
@@ -65,4 +90,10 @@ harlequin build --entrypoint src/app.lua --outputDir dist
 
 # Build with custom config and debug
 harlequin build --entrypoint main.lua --configPath custom.yaml --debug
+
+# Bundle Lua files
+harlequin lua-utils bundle --entrypoint main.lua
+
+# Bundle with custom output
+harlequin lua-utils bundle --entrypoint src/app.lua --outputPath dist/bundle.lua
 ```

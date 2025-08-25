@@ -60,7 +60,7 @@ type Model struct {
 	configForm      *components.ConfigFormComponent
 	progress        *components.ProgressComponent
 	result          *components.ResultComponent
-	
+
 	// Lua Utils components
 	luaUtilsSelector    *components.ListSelectorComponent
 	luaUtilsFilePicker  *components.FilePickerComponent
@@ -1289,7 +1289,7 @@ func (m *Model) viewLuaUtilsOutput() string {
 	if m.luaUtilsOutputInput == nil {
 		actualPanelWidth := m.getPanelWidth() - 2
 		m.luaUtilsOutputInput = components.CreateOutputDirInput(actualPanelWidth, m.getPanelHeight())
-		
+
 		// Set a default value based on entrypoint
 		if m.luaUtilsFlow.Entrypoint != "" {
 			dir := filepath.Dir(m.luaUtilsFlow.Entrypoint)
@@ -1438,7 +1438,7 @@ func (m *Model) updateLuaUtilsOutput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Check if enter was pressed after updating the component
 		if key.Matches(msg, m.keyMap.Enter) {
 			value := m.luaUtilsOutputInput.GetValue()
-			
+
 			if value != "" {
 				m.luaUtilsFlow.OutputPath = value
 				m.state = ViewLuaUtilsRunning
