@@ -4,6 +4,13 @@
   "projectType": "application",
   "sourceRoot": "docs/docs",
   "targets": {
+    "setup": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "yarn install",
+        "cwd": "docs"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {

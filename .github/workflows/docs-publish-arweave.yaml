@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: 20.x
       - run: yarn --frozen-lockfile
+      - run: npx nx run docs:setup
       - run: npx nx run docs:publish:arweave
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
