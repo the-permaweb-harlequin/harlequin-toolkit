@@ -3,6 +3,7 @@ import { defineConfig } from 'rspress/config';
 
 export default defineConfig({
   root: path.join(__dirname, 'docs'),
+  ssg: true,
   title: 'Harlequin Toolkit',
   description: 'A comprehensive toolkit for building on the Permaweb',
   icon: '/harlequin_mascot.png',
