@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -14,6 +15,7 @@ import (
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build/builders"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
+	luautils "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/lua_utils"
 	components "github.com/the-permaweb-harlequin/harlequin-toolkit/cli/tui/components"
 )
 
@@ -30,6 +32,12 @@ const (
 	ViewBuildRunning
 	ViewBuildSuccess
 	ViewBuildError
+	ViewLuaUtilsSelection
+	ViewLuaUtilsEntrypoint
+	ViewLuaUtilsOutput
+	ViewLuaUtilsRunning
+	ViewLuaUtilsSuccess
+	ViewLuaUtilsError
 )
 
 // Model represents the modernized TUI application state
@@ -37,6 +45,7 @@ type Model struct {
 	// Core state
 	state ViewState
 	flow  *BuildFlow
+	luaUtilsFlow *LuaUtilsFlow
 	ctx   context.Context
 
 	// Bubbles components
@@ -51,6 +60,12 @@ type Model struct {
 	configForm      *components.ConfigFormComponent
 	progress        *components.ProgressComponent
 	result          *components.ResultComponent
+	
+	// Lua Utils components
+	luaUtilsSelector    *components.ListSelectorComponent
+	luaUtilsFilePicker  *components.FilePickerComponent
+	luaUtilsFileSelector *components.ListSelectorComponent
+	luaUtilsOutputInput *components.TextInputComponent
 
 	// Layout
 	width  int
@@ -58,9 +73,11 @@ type Model struct {
 
 	// File selection mode
 	useFilePicker bool // true = manual picker, false = automatic list
+	useLuaUtilsFilePicker bool // for lua-utils file selection
 
 	// Build process
 	buildResult *BuildResult
+	luaUtilsResult *LuaUtilsResult
 	program     *tea.Program
 }
 
@@ -82,6 +99,20 @@ type BuildResult struct {
 	Flow    *BuildFlow
 }
 
+// LuaUtilsFlow represents the lua-utils configuration flow
+type LuaUtilsFlow struct {
+	Command     string // "bundle" for now
+	Entrypoint  string
+	OutputPath  string
+}
+
+// LuaUtilsResult holds the result of a lua-utils operation
+type LuaUtilsResult struct {
+	Success bool
+	Error   error
+	Flow    *LuaUtilsFlow
+}
+
 // Messages for Bubble Tea
 type BuildStepStartMsg struct{ StepName string }
 type BuildStepCompleteMsg struct {
@@ -89,6 +120,7 @@ type BuildStepCompleteMsg struct {
 	Success  bool
 }
 type BuildCompleteMsg struct{ Result *BuildResult }
+type LuaUtilsCompleteMsg struct{ Result *LuaUtilsResult }
 type TickMsg struct{}
 
 // NewModel creates a new modernized TUI model
@@ -109,6 +141,7 @@ func NewModel(ctx context.Context) *Model {
 	return &Model{
 		state:           ViewCommandSelection,
 		flow:            &BuildFlow{},
+		luaUtilsFlow:    &LuaUtilsFlow{},
 		ctx:             ctx,
 		keyMap:          keyMap,
 		help:            helpModel,
@@ -167,6 +200,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateBuildRunning(msg)
 		case ViewBuildSuccess, ViewBuildError:
 			return m.updateBuildResult(msg)
+		case ViewLuaUtilsSelection:
+			return m.updateLuaUtilsSelection(msg)
+		case ViewLuaUtilsEntrypoint:
+			return m.updateLuaUtilsEntrypoint(msg)
+		case ViewLuaUtilsOutput:
+			return m.updateLuaUtilsOutput(msg)
+		case ViewLuaUtilsRunning:
+			return m.updateLuaUtilsRunning(msg)
+		case ViewLuaUtilsSuccess, ViewLuaUtilsError:
+			return m.updateLuaUtilsResult(msg)
 		}
 
 	case BuildStepStartMsg:
@@ -199,6 +242,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Create result component
 		// Using content methods that don't apply their own sizing/borders
+		m.result = components.NewResultComponent(
+			msg.Result.Success,
+			msg.Result,
+			0, // Width not used by content methods
+			0, // Height not used by content methods
+		)
+
+		return m, nil
+
+	case LuaUtilsCompleteMsg:
+		m.luaUtilsResult = msg.Result
+		if msg.Result.Success {
+			m.state = ViewLuaUtilsSuccess
+		} else {
+			m.state = ViewLuaUtilsError
+		}
+
+		// Create result component for lua-utils
 		m.result = components.NewResultComponent(
 			msg.Result.Success,
 			msg.Result,
@@ -251,6 +312,16 @@ func (m *Model) View() string {
 		content = m.viewBuildRunning()
 	case ViewBuildSuccess, ViewBuildError:
 		content = m.viewBuildResult()
+	case ViewLuaUtilsSelection:
+		content = m.viewLuaUtilsSelection()
+	case ViewLuaUtilsEntrypoint:
+		content = m.viewLuaUtilsEntrypoint()
+	case ViewLuaUtilsOutput:
+		content = m.viewLuaUtilsOutput()
+	case ViewLuaUtilsRunning:
+		content = m.viewLuaUtilsRunning()
+	case ViewLuaUtilsSuccess, ViewLuaUtilsError:
+		content = m.viewLuaUtilsResult()
 	}
 
 	// Create controls/help with proper width
@@ -387,6 +458,18 @@ func (m *Model) getViewTitle() string {
 		return "Build Successful!"
 	case ViewBuildError:
 		return "Build Failed"
+	case ViewLuaUtilsSelection:
+		return "Select Lua Utils Command"
+	case ViewLuaUtilsEntrypoint:
+		return "Select Lua File to Bundle"
+	case ViewLuaUtilsOutput:
+		return "Select Output Path"
+	case ViewLuaUtilsRunning:
+		return "Bundling Lua Files"
+	case ViewLuaUtilsSuccess:
+		return "Bundle Successful!"
+	case ViewLuaUtilsError:
+		return "Bundle Failed"
 	}
 	return "Harlequin"
 }
@@ -401,11 +484,13 @@ func (m *Model) viewCommandSelection() string {
 
 	// Right panel with description
 	selected := m.commandSelector.GetSelected()
-	description := "Welcome to Harlequin! Start by building your AOS project."
+	description := "Welcome to Harlequin! Choose a command to get started."
 	if selected != nil {
 		switch selected.Value() {
 		case "build":
 			description = "Interactive project building with guided configuration.\n\nThis will take you through:\n• Build type selection\n• Entrypoint file selection\n• Output directory configuration\n• Build configuration review\n• Actual build process\n\nThe TUI will guide you step-by-step through the entire build process with helpful descriptions and validation."
+		case "lua-utils":
+			description = "Lua utilities for bundling and processing Lua files.\n\nCurrently available:\n• Bundle - Combine multiple Lua files into a single executable\n\nThe bundle command will:\n• Analyze require() statements in your main Lua file\n• Recursively resolve all dependencies\n• Create a single bundled file with all modules\n• Handle circular dependencies gracefully"
 		default:
 			description = selected.Description()
 		}
@@ -668,6 +753,20 @@ func (m *Model) createControls() string {
 		controls = []string{"Please wait...", "q Quit"}
 	case ViewBuildSuccess, ViewBuildError:
 		controls = []string{"Enter Exit", "q Quit"}
+	case ViewLuaUtilsSelection:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
+	case ViewLuaUtilsEntrypoint:
+		if m.useLuaUtilsFilePicker {
+			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "Enter Select", "f File Picker", "Esc Back", "q Quit"}
+		}
+	case ViewLuaUtilsOutput:
+		controls = []string{"Type path", "Enter Confirm", "Esc Back", "q Quit"}
+	case ViewLuaUtilsRunning:
+		controls = []string{"Please wait...", "q Quit"}
+	case ViewLuaUtilsSuccess, ViewLuaUtilsError:
+		controls = []string{"Enter Exit", "q Quit"}
 	}
 
 	// Use container width for controls (with same margin as main container)
@@ -716,6 +815,10 @@ func (m *Model) updateCommandSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case "build":
 				// Go to build type selection
 				m.state = ViewBuildTypeSelection
+				return m, nil
+			case "lua-utils":
+				// Go to lua-utils selection
+				m.state = ViewLuaUtilsSelection
 				return m, nil
 			}
 		}
@@ -913,6 +1016,12 @@ func (m *Model) handleBack() (tea.Model, tea.Cmd) {
 		m.state = ViewOutputDirectory
 	case ViewConfigEditing:
 		m.state = ViewConfigReview
+	case ViewLuaUtilsSelection:
+		m.state = ViewCommandSelection
+	case ViewLuaUtilsEntrypoint:
+		m.state = ViewLuaUtilsSelection
+	case ViewLuaUtilsOutput:
+		m.state = ViewLuaUtilsEntrypoint
 	}
 
 	return m, nil
@@ -1078,6 +1187,337 @@ func (m *Model) executeRealBuild() error {
 	}
 
 	return nil
+}
+
+// Lua Utils view and update functions
+
+// viewLuaUtilsSelection renders the lua-utils command selection view
+func (m *Model) viewLuaUtilsSelection() string {
+	// Create lua-utils selector if not exists
+	if m.luaUtilsSelector == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+		m.luaUtilsSelector = components.CreateLuaUtilsSelector(actualPanelWidth, m.getPanelHeight())
+	}
+
+	leftPanel := m.luaUtilsSelector.View()
+
+	// Right panel with description
+	selected := m.luaUtilsSelector.GetSelected()
+	description := "Select a Lua utility command to run."
+	if selected != nil {
+		switch selected.Value() {
+		case "bundle":
+			description = "Bundle multiple Lua files into a single executable.\n\nThis command will:\n• Analyze your main Lua file for require() statements\n• Recursively resolve all dependencies\n• Handle circular dependencies gracefully\n• Create a self-contained Lua script\n• Preserve module structure and functionality\n\nThe bundled output includes all required modules as local functions with package loading mappings for require() compatibility."
+		default:
+			description = selected.Description()
+		}
+	}
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Lua Utils",
+		description,
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewLuaUtilsEntrypoint renders the lua-utils entrypoint selection view
+func (m *Model) viewLuaUtilsEntrypoint() string {
+	// Initialize the appropriate selector on first view
+	if m.luaUtilsFileSelector == nil && !m.useLuaUtilsFilePicker {
+		// Try automatic discovery first
+		cwd, _ := os.Getwd()
+		actualPanelWidth := m.getPanelWidth() - 2
+		if selector, err := components.CreateEntrypointSelectorWithDiscovery(cwd, actualPanelWidth, m.getPanelHeight()); err == nil {
+			m.luaUtilsFileSelector = selector
+		} else {
+			// Fall back to file picker if discovery fails
+			m.useLuaUtilsFilePicker = true
+		}
+	}
+
+	if m.useLuaUtilsFilePicker {
+		// Use manual file picker
+		if m.luaUtilsFilePicker == nil {
+			cwd, _ := os.Getwd()
+			actualPanelWidth := m.getPanelWidth() - 2
+			m.luaUtilsFilePicker = components.CreateEntrypointFilePicker(cwd, actualPanelWidth, m.getPanelHeight())
+		}
+
+		leftPanel := m.luaUtilsFilePicker.View()
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Manual File Selection",
+			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .lua files with Enter\n\nPress 'l' to switch to automatic discovery",
+				m.luaUtilsFilePicker.GetCurrentDirectory()),
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	} else {
+		// Use automatic discovery list
+		leftPanel := m.luaUtilsFileSelector.View()
+
+		// Right panel with discovery info
+		selectedFile := ""
+		if selected := m.luaUtilsFileSelector.GetSelected(); selected != nil {
+			selectedFile = selected.Value()
+		}
+
+		description := "Select the main Lua file to bundle.\n\nFiles are found recursively (excluding build directories)\n\nPress 'f' to switch to manual file picker"
+		if selectedFile != "" {
+			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
+		}
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Auto-discovered Files",
+			description,
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	}
+}
+
+// viewLuaUtilsOutput renders the lua-utils output path selection view
+func (m *Model) viewLuaUtilsOutput() string {
+	// Create output path input if not exists
+	if m.luaUtilsOutputInput == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+		m.luaUtilsOutputInput = components.CreateOutputDirInput(actualPanelWidth, m.getPanelHeight())
+		
+		// Set a default value based on entrypoint
+		if m.luaUtilsFlow.Entrypoint != "" {
+			dir := filepath.Dir(m.luaUtilsFlow.Entrypoint)
+			base := filepath.Base(m.luaUtilsFlow.Entrypoint)
+			ext := filepath.Ext(base)
+			name := strings.TrimSuffix(base, ext)
+			defaultOutput := filepath.Join(dir, name+".bundled.lua")
+			m.luaUtilsOutputInput.SetValue(defaultOutput)
+		}
+	}
+
+	leftPanel := m.luaUtilsOutputInput.View()
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Output Path",
+		"Enter the path where the bundled Lua file should be saved.\n\nThe bundled file will contain:\n• All required modules as local functions\n• Package loading mappings\n• Your main file content\n\nExample paths:\n• ./bundle.lua\n• dist/app.bundled.lua\n• output/combined.lua\n\nLeave empty to use default path based on entrypoint.",
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewLuaUtilsRunning renders the lua-utils progress view
+func (m *Model) viewLuaUtilsRunning() string {
+	leftPanel := ""
+	if m.progress != nil {
+		leftPanel = m.progress.ViewContent()
+	}
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Bundling Progress",
+		"Bundling your Lua files...\n\nThis process:\n• Analyzes dependency tree\n• Resolves require() statements\n• Handles circular dependencies\n• Creates bundled output",
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewLuaUtilsResult renders the lua-utils result view
+func (m *Model) viewLuaUtilsResult() string {
+	if m.result == nil {
+		return "No result available"
+	}
+
+	leftPanel := m.result.ViewPanelContent()
+	rightPanel := m.result.ViewDetailsContent()
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// Update functions for lua-utils states
+
+// updateLuaUtilsSelection handles lua-utils command selection
+func (m *Model) updateLuaUtilsSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the list component first
+	model, cmd := m.luaUtilsSelector.Update(tea.Msg(msg))
+	if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+		m.luaUtilsSelector = newSelector
+	}
+
+	// Check if enter was pressed after updating the component
+	if key.Matches(msg, m.keyMap.Enter) {
+		if selected := m.luaUtilsSelector.GetSelected(); selected != nil {
+			switch selected.Value() {
+			case "bundle":
+				m.luaUtilsFlow.Command = "bundle"
+				m.state = ViewLuaUtilsEntrypoint
+				return m, nil
+			}
+		}
+	}
+
+	return m, cmd
+}
+
+// updateLuaUtilsEntrypoint handles lua-utils entrypoint selection
+func (m *Model) updateLuaUtilsEntrypoint(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		// Switch to file picker mode
+		if !m.useLuaUtilsFilePicker {
+			m.useLuaUtilsFilePicker = true
+			m.luaUtilsFilePicker = nil // Reset to reinitialize
+			return m, nil
+		}
+	case "l":
+		// Switch to list/automatic discovery mode
+		if m.useLuaUtilsFilePicker {
+			m.useLuaUtilsFilePicker = false
+			m.luaUtilsFileSelector = nil // Reset to reinitialize
+			return m, nil
+		}
+	}
+
+	if key.Matches(msg, m.keyMap.Enter) {
+		var selectedFile string
+
+		if m.useLuaUtilsFilePicker {
+			if m.luaUtilsFilePicker != nil && m.luaUtilsFilePicker.HasSelection() {
+				selectedFile = m.luaUtilsFilePicker.GetSelectedFile()
+			}
+		} else {
+			if m.luaUtilsFileSelector != nil {
+				if selected := m.luaUtilsFileSelector.GetSelected(); selected != nil {
+					selectedFile = selected.Value()
+				}
+			}
+		}
+
+		if selectedFile != "" && selectedFile != "No Lua files found" {
+			m.luaUtilsFlow.Entrypoint = selectedFile
+			m.state = ViewLuaUtilsOutput
+			return m, nil
+		}
+	}
+
+	// Update the active component
+	if m.useLuaUtilsFilePicker && m.luaUtilsFilePicker != nil {
+		model, cmd := m.luaUtilsFilePicker.Update(msg)
+		if newPicker, ok := model.(*components.FilePickerComponent); ok {
+			m.luaUtilsFilePicker = newPicker
+		}
+		return m, cmd
+	} else if !m.useLuaUtilsFilePicker && m.luaUtilsFileSelector != nil {
+		model, cmd := m.luaUtilsFileSelector.Update(msg)
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.luaUtilsFileSelector = newSelector
+		}
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateLuaUtilsOutput handles lua-utils output path selection
+func (m *Model) updateLuaUtilsOutput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the output input first
+	if m.luaUtilsOutputInput != nil {
+		model, cmd := m.luaUtilsOutputInput.Update(tea.Msg(msg))
+		if newInput, ok := model.(*components.TextInputComponent); ok {
+			m.luaUtilsOutputInput = newInput
+		}
+
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			value := m.luaUtilsOutputInput.GetValue()
+			
+			if value != "" {
+				m.luaUtilsFlow.OutputPath = value
+				m.state = ViewLuaUtilsRunning
+				go m.runLuaUtilsBundle() // Run bundle in background
+				return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+					return TickMsg{}
+				})
+			}
+		}
+
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateLuaUtilsRunning handles lua-utils running state
+func (m *Model) updateLuaUtilsRunning(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Only allow quit during bundling
+	return m, nil
+}
+
+// updateLuaUtilsResult handles lua-utils result state
+func (m *Model) updateLuaUtilsResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle exit
+	if key.Matches(msg, m.keyMap.Enter) {
+		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+// runLuaUtilsBundle executes the lua-utils bundle process
+func (m *Model) runLuaUtilsBundle() {
+	debug.Printf("Starting lua-utils bundle process")
+	debug.Printf("Entrypoint: %s", m.luaUtilsFlow.Entrypoint)
+	debug.Printf("Output: %s", m.luaUtilsFlow.OutputPath)
+
+	var bundleErr error
+	success := true
+
+	// Import lua utils (already imported at top)
+
+	// Perform the bundling
+	bundledContent, err := luautils.Bundle(m.luaUtilsFlow.Entrypoint)
+	if err != nil {
+		debug.Printf("Bundle failed: %v", err)
+		bundleErr = err
+		success = false
+	} else {
+		// Write the bundled content to the output file
+		// Ensure output directory exists
+		outputDir := filepath.Dir(m.luaUtilsFlow.OutputPath)
+		if err := os.MkdirAll(outputDir, 0755); err != nil {
+			debug.Printf("Failed to create output directory: %v", err)
+			bundleErr = fmt.Errorf("failed to create output directory: %w", err)
+			success = false
+		} else {
+			// Write the bundled content
+			if err := os.WriteFile(m.luaUtilsFlow.OutputPath, []byte(bundledContent), 0644); err != nil {
+				debug.Printf("Failed to write bundled file: %v", err)
+				bundleErr = fmt.Errorf("failed to write bundled file: %w", err)
+				success = false
+			} else {
+				debug.Printf("Bundle completed successfully: %s", m.luaUtilsFlow.OutputPath)
+			}
+		}
+	}
+
+	// Send final result
+	result := &LuaUtilsResult{
+		Success: success,
+		Error:   bundleErr,
+		Flow:    m.luaUtilsFlow,
+	}
+
+	if m.program != nil {
+		m.program.Send(LuaUtilsCompleteMsg{Result: result})
+	}
 }
 
 // RunBuildTUI starts the modernized interactive build TUI

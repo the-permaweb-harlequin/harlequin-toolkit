@@ -228,7 +228,25 @@ func CreateCommandSelector(width, height int) *ListSelectorComponent {
 			description: "Build an AOS project with interactive configuration",
 			value:       "build",
 		},
+		{
+			title:       "Lua Utils",
+			description: "Lua bundling and utilities",
+			value:       "lua-utils",
+		},
 	}
 
 	return NewListSelector("Welcome to Harlequin", items, width, height)
+}
+
+// CreateLuaUtilsSelector creates a selector for lua-utils commands
+func CreateLuaUtilsSelector(width, height int) *ListSelectorComponent {
+	items := []ListItem{
+		{
+			title:       "Bundle",
+			description: "Bundle multiple Lua files into a single executable",
+			value:       "bundle",
+		},
+	}
+
+	return NewListSelector("Lua Utils Commands", items, width, height)
 }
