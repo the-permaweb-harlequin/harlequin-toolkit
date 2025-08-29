@@ -1,0 +1,9 @@
+---
+description: Preferred package managers
+globs:
+alwaysApply: false
+---
+
+When using javascript and typescript, prefer yarn (version 1).
+
+When creating a javascript or typescript, ensure you create a .yarnrc file with `ignore-engines: true`

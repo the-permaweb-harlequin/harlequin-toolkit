@@ -35,7 +35,7 @@
     "defaultBase": "origin/main"
   },
   "release": {
-    "projects": ["cli"],
+    "projects": ["cli", "remote-signing"],
     "projectsRelationship": "independent",
     "releaseTagPattern": "v{version}",
     "changelog": {
@@ -43,6 +43,11 @@
       "automaticFromRef": true,
       "projectChangelogs": {
         "cli": {
+          "createRelease": "github",
+          "entryWhenNoChanges": false,
+          "file": "CHANGELOG.md"
+        },
+        "remote-signing": {
           "createRelease": "github",
           "entryWhenNoChanges": false,
           "file": "CHANGELOG.md"

@@ -1,0 +1,10 @@
+---
+description: Documentation routing
+globs:
+alwaysApply: false
+---
+
+
+Projects get their own parent routes and should be listed in the navbar.
+
+Eg CLI, SDK, Server, etc.

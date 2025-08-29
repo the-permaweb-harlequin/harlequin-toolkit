@@ -9,7 +9,10 @@ help:
 	@echo "Available commands:"
 	@echo "  build           Build the remote signing binary (current platform)"
 	@echo "  clean           Clean build artifacts"
-	@echo "  test            Run tests"
+	@echo "  test            Run unit tests"
+	@echo "  test-integration Run integration tests with goar"
+	@echo "  test-all        Run all tests (unit + integration)"
+	@echo "  benchmark       Run performance benchmarks"
 	@echo "  deps            Download dependencies"
 	@echo "  docs            Generate API documentation"
 	@echo "  run             Run the server (development)"
@@ -48,10 +51,31 @@ clean:
 	go clean
 	@echo "✅ Clean complete"
 
-# Run tests
+# Run unit tests
 test:
-	@echo "🧪 Running tests..."
-	go test -v ./...
+	@echo "🧪 Running unit tests..."
+	go test -v ./server
+	@echo "✅ Unit tests completed"
+
+# Run integration tests
+test-integration:
+	@echo "🔬 Running integration tests..."
+	@echo "⚠️  Starting test server on port 8082..."
+	RUN_INTEGRATION_TESTS=true go test -v -run TestIntegrationSuite .
+	@echo "✅ Integration tests completed"
+
+# Run all tests (unit + integration)
+test-all:
+	@echo "🧪 Running all tests..."
+	go test -v ./server
+	RUN_INTEGRATION_TESTS=true go test -v .
+	@echo "✅ All tests completed"
+
+# Run benchmarks
+benchmark:
+	@echo "⚡ Running benchmarks..."
+	RUN_INTEGRATION_TESTS=true go test -bench=. -benchmem .
+	@echo "✅ Benchmarks completed"
 
 # Download dependencies
 deps:

@@ -1,0 +1,7 @@
+---
+description: Repository structure
+globs:
+alwaysApply: false
+---
+
+This is an NX repo and all projects routed to from the route directory should be managed with NX

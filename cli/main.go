@@ -41,6 +41,8 @@ func main() {
 		cmd.HandleBuildCommand(ctx, os.Args[2:])
 	case "lua-utils":
 		cmd.HandleLuaUtilsCommand(ctx, os.Args[2:])
+	case "remote-signing":
+		cmd.HandleRemoteSigningCommand(ctx, os.Args[2:])
 	case "version", "--version", "-v":
 		printVersion()
 	case "help", "--help", "-h":
@@ -70,6 +72,7 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  build --entrypoint <file> [flags]  Build project non-interactively")
 	fmt.Println("  lua-utils <subcommand> [flags]     Lua utilities (bundle, etc.)")
+	fmt.Println("  remote-signing <subcommand> [flags] Remote signing server")
 	fmt.Println("  version                             Show version information")
 	fmt.Println("  help                                Show this help message")
 	fmt.Println()
@@ -78,6 +81,7 @@ func printUsage() {
 	fmt.Println("  harlequin build --entrypoint main.lua       # Non-interactive build")
 	fmt.Println("  harlequin build --entrypoint main.lua --debug  # Build with debug")
 	fmt.Println("  harlequin lua-utils bundle --entrypoint main.lua  # Bundle Lua files")
+	fmt.Println("  harlequin remote-signing start --port 8080  # Start remote signing server")
 	fmt.Println("  harlequin version                            # Show version information")
 	fmt.Println()
 	fmt.Println("Interactive TUI (Default Mode):")

@@ -152,13 +152,8 @@ func (s *Server) HandleGetData(c *gin.Context) {
 	}
 
 	// Return the raw data for signing
-	c.JSON(http.StatusOK, gin.H{
-		"uuid": itemUUID,
-		"data": signingRequest.Data,
-		"created_at": signingRequest.CreatedAt,
-		"requested_at": signingRequest.RequestedAt,
-		"client_id": signingRequest.ClientID,
-	})
+	c.Header("Content-Type", "application/octet-stream")
+	c.Data(http.StatusOK, "application/octet-stream", signingRequest.Data)
 }
 
 // HandleSubmitSignedData handles POST /<uuid> - submits signed data

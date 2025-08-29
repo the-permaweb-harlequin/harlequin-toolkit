@@ -57,7 +57,28 @@
       "executor": "nx:run-commands",
       "options": {
         "cwd": "remote-signing",
-        "command": "go test ./..."
+        "command": "make test"
+      }
+    },
+    "test-integration": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make test-integration"
+      }
+    },
+    "test-all": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make test-all"
+      }
+    },
+    "benchmark": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make benchmark"
       }
     },
     "lint": {

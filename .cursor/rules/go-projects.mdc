@@ -1,0 +1,8 @@
+---
+description: Go language project structures
+globs:
+alwaysApply: false
+---
+
+On Go projects, especially CLI's that publish install binaries (less so for just packages) use goreleaser along with
+the arweave publishing workflow (see @deploy-to-arweave.ts for reference)

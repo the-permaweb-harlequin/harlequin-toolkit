@@ -1,0 +1,11 @@
+---
+description: Documentation practices
+globs:
+alwaysApply: false
+---
+
+When adding and modifying features, refer to the docs project for relevant docs that need to be updated.
+
+When documenting project structure or design decisions, use the madr directory to store those files using standard MADR practices.
+
+Packages and CLIs should have a README.md in their home directory, along with a spot in the docs project.

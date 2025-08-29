@@ -1,0 +1,293 @@
+name: Remote Signing Server CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['remote-signing-v*']
+    paths:
+      - 'remote-signing/**'
+      - '.github/workflows/remote-signing.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'remote-signing/**'
+      - '.github/workflows/remote-signing.yml'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: harlequin-remote-signing
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./remote-signing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('remote-signing/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Run integration tests
+        run: make test-integration
+
+      - name: Run linting
+        run: |
+          go fmt ./...
+          go vet ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./remote-signing
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('remote-signing/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Generate API documentation
+        run: make docs
+
+      - name: Build binaries for all platforms
+        run: make build-all
+
+      - name: Extract version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/remote-signing-v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/remote-signing-v}
+          else
+            VERSION="0.0.0-${GITHUB_SHA::8}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Upload binaries as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-signing-binaries-${{ steps.version.outputs.version }}
+          path: |
+            remote-signing/remote-signing-*
+          retention-days: 30
+
+  docker:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: remote-signing-binaries-${{ needs.build.outputs.version }}
+          path: ./remote-signing/
+
+      - name: Make binaries executable
+        run: chmod +x remote-signing/remote-signing-*
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=match,pattern=remote-signing-v(.*),group=1
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image (amd64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./remote-signing
+          file: ./remote-signing/Dockerfile.binary
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-amd64
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BINARY_PATH=./remote-signing-linux-amd64
+          cache-from: type=gha,scope=remote-signing-amd64
+          cache-to: type=gha,mode=max,scope=remote-signing-amd64
+
+      - name: Build and push Docker image (arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./remote-signing
+          file: ./remote-signing/Dockerfile.binary
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}-arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BINARY_PATH=./remote-signing-linux-arm64
+          cache-from: type=gha,scope=remote-signing-arm64
+          cache-to: type=gha,mode=max,scope=remote-signing-arm64
+
+      - name: Create and push multi-arch manifest
+        run: |
+          # Create multi-arch manifest for each tag
+          for tag in $(echo '${{ steps.meta.outputs.tags }}' | tr '\n' ' '); do
+            if [[ -n "$tag" ]]; then
+              echo "Creating manifest for: $tag"
+              docker buildx imagetools create \
+                --tag $tag \
+                $tag-amd64 \
+                $tag-arm64
+            fi
+          done
+
+  release:
+    needs: [test, build, docker]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/remote-signing-v')
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: remote-signing-binaries-${{ needs.build.outputs.version }}
+          path: ./artifacts/
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous remote-signing tag
+          PREV_TAG=$(git tag -l "remote-signing-v*" --sort=-version:refname | sed -n 2p)
+          if [[ -z "$PREV_TAG" ]]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+
+          # Get commits for remote-signing directory only
+          git log --oneline --no-merges $PREV_TAG..HEAD -- remote-signing/ >> commits.txt
+
+          if [[ -s commits.txt ]]; then
+            while read line; do
+              echo "- $line" >> changelog.md
+            done < commits.txt
+          else
+            echo "- No changes in remote-signing directory" >> changelog.md
+          fi
+
+          echo "" >> changelog.md
+          echo "## Docker Images" >> changelog.md
+          echo "- \`ghcr.io/${{ github.repository }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.version }}\`" >> changelog.md
+          echo "- \`ghcr.io/${{ github.repository }}/${{ env.IMAGE_NAME }}:latest\`" >> changelog.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Remote Signing Server v${{ needs.build.outputs.version }}
+          body_path: changelog.md
+          files: |
+            artifacts/remote-signing-*
+          draft: false
+          prerelease: ${{ contains(github.ref, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-arweave:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/remote-signing-v')
+    defaults:
+      run:
+        working-directory: ./remote-signing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: remote-signing-binaries-${{ needs.build.outputs.version }}
+          path: ./remote-signing/
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+          cache-dependency-path: remote-signing/scripts/yarn.lock
+
+      - name: Install deployment dependencies
+        run: |
+          cd scripts
+          yarn install --frozen-lockfile
+
+      - name: Deploy to Arweave
+        run: |
+          cd scripts
+          yarn deploy
+        env:
+          ARWEAVE_WALLET: ${{ secrets.ARWEAVE_WALLET }}
+          DEPLOY_VERSION: ${{ needs.build.outputs.version }}

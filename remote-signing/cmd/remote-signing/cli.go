@@ -54,19 +54,19 @@ func (c *CLIConfig) ToServerConfig() *server.Config {
 // StartCommand starts the remote signing server
 func StartCommand(args []string) error {
 	config := DefaultCLIConfig()
-	
+
 	// Parse command line arguments
 	if err := parseStartArgs(args, config); err != nil {
 		return fmt.Errorf("failed to parse arguments: %w", err)
 	}
-	
+
 	// Load config file if specified
 	if config.ConfigFile != "" {
 		if err := loadConfigFile(config.ConfigFile, config); err != nil {
 			return fmt.Errorf("failed to load config file: %w", err)
 		}
 	}
-	
+
 	// Set default templates path if not specified
 	if config.TemplatesPath == "" {
 		// Look for templates in the binary directory
@@ -74,7 +74,7 @@ func StartCommand(args []string) error {
 		if err == nil {
 			config.TemplatesPath = filepath.Join(filepath.Dir(execPath), "templates")
 		}
-		
+
 		// Fallback to current directory
 		if _, err := os.Stat(config.TemplatesPath); os.IsNotExist(err) {
 			if pwd, err := os.Getwd(); err == nil {
@@ -82,24 +82,24 @@ func StartCommand(args []string) error {
 			}
 		}
 	}
-	
+
 	// Create server
 	srv := server.New(config.ToServerConfig())
-	
+
 	// Create context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	go func() {
 		<-sigCh
 		log.Println("Received shutdown signal...")
 		cancel()
 	}()
-	
+
 	// Start server
 	fmt.Printf("🎭 Starting Harlequin Remote Signing Server...\n")
 	fmt.Printf("📡 Server will be available at: http://%s:%d\n", config.Host, config.Port)
@@ -112,11 +112,11 @@ func StartCommand(args []string) error {
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop the server")
 	fmt.Println()
-	
+
 	if err := srv.StartWithTemplates(ctx, config.TemplatesPath); err != nil {
 		return fmt.Errorf("server failed: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -130,19 +130,19 @@ func StopCommand(args []string) error {
 // StatusCommand shows the status of the remote signing server
 func StatusCommand(args []string) error {
 	config := DefaultCLIConfig()
-	
+
 	// Parse arguments for host and port
 	if err := parseStatusArgs(args, config); err != nil {
 		return fmt.Errorf("failed to parse arguments: %w", err)
 	}
-	
+
 	// Make HTTP request to status endpoint
 	url := fmt.Sprintf("http://%s:%d/status", config.Host, config.Port)
-	
+
 	// TODO: Implement HTTP client request to get status
 	fmt.Printf("🔍 Checking server status at %s\n", url)
 	fmt.Println("Status command not yet fully implemented")
-	
+
 	return nil
 }
 
@@ -248,12 +248,12 @@ func loadConfigFile(filename string, config *CLIConfig) error {
 		}
 		filename = filepath.Join(pwd, filename)
 	}
-	
+
 	data, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
 	}
-	
+
 	return json.Unmarshal(data, config)
 }
 
@@ -330,10 +330,10 @@ func HandleRemoteSigningCommand(args []string) {
 		printRemoteSigningHelp()
 		return
 	}
-	
+
 	command := args[0]
 	commandArgs := args[1:]
-	
+
 	var err error
 	switch command {
 	case "start":
@@ -350,7 +350,7 @@ func HandleRemoteSigningCommand(args []string) {
 		printRemoteSigningHelp()
 		os.Exit(1)
 	}
-	
+
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
