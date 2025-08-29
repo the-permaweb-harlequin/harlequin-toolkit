@@ -1,0 +1,33 @@
+{
+  "name": "harlequin-remote-signing-deployment",
+  "version": "1.0.0",
+  "description": "Deploy Harlequin Remote Signing Server binaries to Arweave with ARNS routing",
+  "main": "deploy-to-arweave.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "deploy": "tsx deploy-to-arweave.ts",
+    "deploy:dryrun": "tsx deploy-to-arweave.ts --dryrun",
+    "type-check": "tsc --noEmit"
+  },
+  "packageManager": "yarn@1.22.22",
+  "dependencies": {
+    "@ar.io/sdk": "^3.18.1",
+    "@ardrive/turbo-sdk": "^1.30.0",
+    "@permaweb/aoconnect": "^0.0.89",
+    "arweave": "^1.14.4",
+    "chalk": "^5.3.0",
+    "glob": "^10.3.10",
+    "mime-types": "^2.1.35",
+    "ora": "^7.0.1",
+    "tsx": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "resolutions": {
+    "@permaweb/aoconnect": "0.0.59"
+  }
+}

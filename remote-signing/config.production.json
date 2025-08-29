@@ -1,0 +1,8 @@
+{
+  "port": 8080,
+  "host": "0.0.0.0",
+  "allowed_origins": ["https://yourdomain.com", "https://app.yourdomain.com", "https://staging.yourdomain.com"],
+  "max_data_size": 52428800,
+  "signing_timeout_minutes": 60,
+  "templates_path": "./templates"
+}

@@ -1,0 +1,48 @@
+# Dockerfile for pre-built binary
+FROM alpine:3.18
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata wget
+
+# Create non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Create app directory
+WORKDIR /app
+
+# Copy pre-built binary (must be built for linux/amd64 or target arch)
+COPY remote-signing .
+
+# Copy templates for web interface
+COPY templates ./templates
+
+# Copy config example
+COPY config.example.json ./config.json
+
+# Make binary executable and change ownership
+RUN chmod +x remote-signing && \
+    chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+
+# Set environment variables with defaults
+ENV PORT=8080
+ENV HOST=0.0.0.0
+ENV SIGNING_TIMEOUT=30
+ENV MAX_DATA_SIZE=10485760
+
+# Default command
+CMD ["./remote-signing", "start", \
+     "--host", "0.0.0.0", \
+     "--port", "8080", \
+     "--timeout", "30", \
+     "--templates", "./templates"]

@@ -1,0 +1,73 @@
+# Build artifacts (keep the target binary for Dockerfile.binary)
+remote-signing-*
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binaries, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+# macOS extended attribute files
+**/._*
+
+# Git
+.git/
+.gitignore
+
+# Docker files (we're already building)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Examples (not needed in production)
+example/
+
+# Old backup files
+old/
+
+# Node modules (if any)
+node_modules/
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Demo and development scripts
+demo.sh
+*.demo
+
+# Local config files that shouldn't be in container
+config.local.json
+.env
+.env.local

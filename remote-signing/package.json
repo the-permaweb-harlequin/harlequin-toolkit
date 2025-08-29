@@ -1,0 +1,39 @@
+{
+  "name": "harlequin-remote-signing",
+  "version": "0.1.0",
+  "description": "Harlequin Remote Signing Server - A secure HTTP/WebSocket service for remote transaction signing workflows",
+  "main": "cmd/remote-signing/main.go",
+  "scripts": {
+    "build": "go build -ldflags=\"-s -w\" -o harlequin-remote-signing ./cmd/remote-signing",
+    "test": "go test ./...",
+    "lint": "go fmt ./... && go vet ./...",
+    "clean": "rm -f harlequin-remote-signing harlequin-remote-signing-*",
+    "start": "./harlequin-remote-signing start",
+    "stop": "./harlequin-remote-signing stop",
+    "status": "./harlequin-remote-signing status"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit.git",
+    "directory": "remote-signing"
+  },
+  "keywords": [
+    "arweave",
+    "signing",
+    "remote",
+    "http",
+    "websocket",
+    "blockchain",
+    "permaweb",
+    "harlequin"
+  ],
+  "author": "The Permaweb Harlequin Team",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/issues"
+  },
+  "homepage": "https://github.com/the-permaweb-harlequin/harlequin-toolkit/tree/main/remote-signing#readme",
+  "engines": {
+    "go": ">=1.21"
+  }
+}

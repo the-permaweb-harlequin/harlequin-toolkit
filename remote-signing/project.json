@@ -1,0 +1,121 @@
+{
+  "name": "remote-signing",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "remote-signing",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "commands": [
+          "go build -ldflags=\"-s -w\" -o ../dist/remote-signing/harlequin-remote-signing ./cmd/remote-signing"
+        ]
+      },
+      "configurations": {
+        "production": {
+          "commands": ["goreleaser build --clean --snapshot --single-target"]
+        }
+      }
+    },
+    "nx-release-publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "echo '🔐 Running GoReleaser for Remote Signing Server release...' && goreleaser release --clean --config .goreleaser.yaml && echo '✅ GoReleaser completed successfully' && echo '🚀 Deploying to Arweave...' && cd scripts && yarn --silent && yarn deploy"
+      },
+      "configurations": {
+        "dry-run": {
+          "command": "echo '🔐 [DRY RUN] Running GoReleaser without publishing...' && goreleaser release --clean --skip=publish --config .goreleaser.yaml && echo '✅ GoReleaser dry-run completed' && echo '🚀 [DRY RUN] Running Arweave deployment simulation...' && cd scripts && yarn --silent && yarn deploy:dryrun"
+        }
+      },
+      "dependsOn": ["build"]
+    },
+    "release": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "commands": ["goreleaser release --clean --config .goreleaser.yaml"]
+      },
+      "configurations": {
+        "snapshot": {
+          "commands": ["goreleaser release --clean --snapshot --config .goreleaser.yaml"]
+        },
+        "dry-run": {
+          "commands": ["goreleaser release --clean --skip=publish --config .goreleaser.yaml"]
+        }
+      }
+    },
+    "goreleaser-check": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "goreleaser check --config .goreleaser.yaml"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "go test ./..."
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "commands": ["go fmt ./...", "go vet ./..."]
+      }
+    },
+    "tidy": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "go mod tidy"
+      }
+    },
+    "setup": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "commands": ["go install github.com/goreleaser/goreleaser@latest"]
+      }
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make docker-build"
+      }
+    },
+    "docker-build-binary": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make docker-build-binary"
+      }
+    },
+    "docker-run": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make docker-run"
+      }
+    },
+    "docker-stop": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make docker-stop"
+      }
+    },
+    "docs": {
+      "executor": "nx:run-commands",
+      "options": {
+        "cwd": "remote-signing",
+        "command": "make docs"
+      }
+    }
+  },
+  "tags": ["type:application", "lang:go", "service:remote-signing"]
+}

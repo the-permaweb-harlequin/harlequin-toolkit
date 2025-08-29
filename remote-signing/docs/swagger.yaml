@@ -1,0 +1,220 @@
+definitions:
+  server.ErrorResponse:
+    description: Standard error response structure
+    properties:
+      error:
+        description: Error message
+        example: Invalid request format
+        type: string
+    type: object
+  server.HealthResponse:
+    description: Server health status response
+    properties:
+      status:
+        description: Health status
+        example: healthy
+        type: string
+      timestamp:
+        description: Unix timestamp
+        example: 1640995200
+        type: integer
+      version:
+        description: Server version
+        example: 1.0.0
+        type: string
+    type: object
+  server.StatusResponse:
+    description: Current server status and statistics
+    properties:
+      active_requests:
+        description: Number of active signing requests
+        example: 3
+        type: integer
+      server_uptime:
+        description: Server uptime duration
+        example: 2h30m45s
+        type: string
+      total_requests:
+        description: Total requests processed
+        example: 150
+        type: integer
+    type: object
+  server.SubmitDataRequest:
+    type: object
+  server.SubmitDataResponse:
+    description: Response structure after successfully submitting data for signing
+    properties:
+      message:
+        description: Status message
+        example: Data submitted for signing
+        type: string
+      signing_url:
+        description: URL for the web signing interface
+        example: http://localhost:8080/sign/123e4567-e89b-12d3-a456-426614174000
+        type: string
+      uuid:
+        description: Unique identifier for the signing request
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+    type: object
+  server.SubmitSignedDataRequest:
+    type: object
+  server.SuccessResponse:
+    description: Generic success response structure
+    properties:
+      message:
+        description: Success message
+        example: Signed data received successfully
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /:
+    post:
+      consumes:
+        - application/json
+        - application/octet-stream
+      description: Submit raw data for remote signing. Returns a UUID to track the
+        signing request.
+      parameters:
+        - description: Data submission request (JSON format)
+          in: body
+          name: request
+          schema:
+            $ref: '#/definitions/server.SubmitDataRequest'
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Data submitted successfully
+          schema:
+            $ref: '#/definitions/server.SubmitDataResponse'
+        '400':
+          description: Bad request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        '413':
+          description: Data too large
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Submit data for signing
+      tags:
+        - Signing
+  /{uuid}:
+    get:
+      description: Retrieve the unsigned data for a signing request by UUID
+      parameters:
+        - description: Signing request UUID
+          in: path
+          name: uuid
+          required: true
+          type: string
+      produces:
+        - application/octet-stream
+        - application/json
+      responses:
+        '200':
+          description: Raw binary data
+          schema:
+            type: string
+        '404':
+          description: Signing request not found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Get unsigned data
+      tags:
+        - Signing
+    post:
+      consumes:
+        - application/json
+        - application/octet-stream
+      description: Submit the signed data for a signing request
+      parameters:
+        - description: Signing request UUID
+          in: path
+          name: uuid
+          required: true
+          type: string
+        - description: Signed data submission
+          in: body
+          name: request
+          schema:
+            $ref: '#/definitions/server.SubmitSignedDataRequest'
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Signed data submitted successfully
+          schema:
+            $ref: '#/definitions/server.SuccessResponse'
+        '400':
+          description: Bad request
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+        '404':
+          description: Signing request not found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Submit signed data
+      tags:
+        - Signing
+  /health:
+    get:
+      description: Get the health status of the server
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Server is healthy
+          schema:
+            $ref: '#/definitions/server.HealthResponse'
+      summary: Health check
+      tags:
+        - Health
+  /sign/{uuid}:
+    get:
+      description: Get the web-based signing interface for a specific signing request
+      parameters:
+        - description: Signing request UUID
+          in: path
+          name: uuid
+          required: true
+          type: string
+      produces:
+        - text/html
+      responses:
+        '200':
+          description: HTML signing form
+          schema:
+            type: string
+        '404':
+          description: Signing request not found
+          schema:
+            $ref: '#/definitions/server.ErrorResponse'
+      summary: Get signing form
+      tags:
+        - Web Interface
+  /status:
+    get:
+      description: Get the current status of all signing requests
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Current server status
+          schema:
+            $ref: '#/definitions/server.StatusResponse'
+      summary: Get server status
+      tags:
+        - Status
+  /ws:
+    get:
+      description: WebSocket endpoint for real-time notifications about signing requests
+      responses:
+        '101':
+          description: WebSocket connection established
+      summary: WebSocket connection
+      tags:
+        - WebSocket
+swagger: '2.0'
