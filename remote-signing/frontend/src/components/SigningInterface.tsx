@@ -1,99 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { DataItem } from '@dha-team/arbundles';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Badge } from './ui/badge';
+import { FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useWallet } from '../contexts/WalletContext';
 
 interface SigningInterfaceProps {
   uuid: string;
-  serverUrl: string;
-  dataSize: number;
-}
-
-// Use the existing arweaveWallet type from arconnect but extend it
-interface ExtendedArweaveWallet {
-  connect: (permissions: string[]) => Promise<void>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  signDataItem?: (data: { data: Uint8Array; tags: Array<{ name: string; value: string }> }) => Promise<any>;
-  disconnect: () => Promise<void>;
-  getActiveAddress: () => Promise<string>;
+  data?: string;
+  dataSize?: number;
+  status?: 'pending' | 'signed' | 'error';
+  serverUrl?: string;
+  isTestMode?: boolean;
 }
 
 export const SigningInterface: React.FC<SigningInterfaceProps> = ({
   uuid,
+  data,
+  dataSize = 0,
+  status = 'pending',
   serverUrl,
-  dataSize,
+  isTestMode = false,
 }) => {
-  const [walletConnected, setWalletConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState<string>('');
+  // Get server URL from props or URL search params or default to localhost
+  const getServerUrl = (): string => {
+    if (serverUrl) return serverUrl;
+    const urlParams = new URLSearchParams(window.location.search);
+    const serverUrlFromParams = urlParams.get('server');
+    return serverUrlFromParams || 'http://localhost:8080';
+  };
+
+  const finalServerUrl = getServerUrl();
+  const { walletConnected } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
-  const [status, setStatus] = useState<{ type: 'idle' | 'pending' | 'success' | 'error'; message: string }>({
+  const [signingStatus, setSigningStatus] = useState<{ type: 'idle' | 'pending' | 'success' | 'error'; message: string }>({
     type: 'idle',
     message: 'Ready to sign'
   });
-  const [dataPreview, setDataPreview] = useState<string>('');
+  const [dataPreview, setDataPreview] = useState<string>(data || '');
   const [actualDataSize, setActualDataSize] = useState<number>(dataSize);
 
   useEffect(() => {
-    checkWalletConnection();
     fetchDataPreview();
   }, []);
 
-  const checkWalletConnection = async () => {
-    if (window.arweaveWallet) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        const address = await window.arweaveWallet.getActiveAddress();
-        if (address) {
-          setWalletConnected(true);
-          setWalletAddress(address);
-        }
-      } catch {
-        console.log('Wallet not connected yet');
-      }
-    }
-  };
-
-  const connectWallet = async () => {
-    if (!window.arweaveWallet) {
-      setStatus({ type: 'error', message: 'Wander/ArConnect wallet not detected. Please install the extension.' });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      await window.arweaveWallet.connect(['ACCESS_ADDRESS', 'SIGN_TRANSACTION']);
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const address = await window.arweaveWallet.getActiveAddress();
-      setWalletConnected(true);
-      setWalletAddress(address);
-      setStatus({ type: 'success', message: `Connected to wallet: ${address.slice(0, 8)}...${address.slice(-8)}` });
-    } catch (error) {
-      console.error('Failed to connect wallet:', error);
-      setStatus({ type: 'error', message: 'Failed to connect to wallet. Please try again.' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const disconnectWallet = async () => {
-    if (window.arweaveWallet) {
-      try {
-        const wallet = window.arweaveWallet as ExtendedArweaveWallet;
-        await wallet.disconnect();
-        setWalletConnected(false);
-        setWalletAddress('');
-        setStatus({ type: 'idle', message: 'Wallet disconnected' });
-      } catch (error) {
-        console.error('Failed to disconnect wallet:', error);
-      }
-    }
-  };
-
   const fetchDataPreview = async () => {
     try {
-      const response = await fetch(`${serverUrl}/${uuid}`);
+      const response = await fetch(`${finalServerUrl}/${uuid}`);
       if (response.ok) {
         const dataItemJson = await response.json();
 
@@ -113,17 +67,22 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
 
 
   const signDataItem = async () => {
+    if (isTestMode) {
+      setSigningStatus({ type: 'error', message: 'Test mode: Signing is disabled' });
+      return;
+    }
+
     if (!walletConnected || !window.arweaveWallet) {
-      setStatus({ type: 'error', message: 'Please connect your wallet first' });
+      setSigningStatus({ type: 'error', message: 'Please connect your wallet first' });
       return;
     }
 
     try {
       setIsLoading(true);
-      setStatus({ type: 'pending', message: '⏳ Fetching data to sign...' });
+      setSigningStatus({ type: 'pending', message: '⏳ Fetching data to sign...' });
 
       // Fetch the data to sign
-      const response = await fetch(`${serverUrl}/${uuid}`);
+      const response = await fetch(`${finalServerUrl}/${uuid}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
@@ -146,7 +105,7 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
       })
 
 
-      setStatus({ type: 'pending', message: '⏳ Please confirm signing in your wallet...' });
+      setSigningStatus({ type: 'pending', message: '⏳ Please confirm signing in your wallet...' });
 
       // Sign the data item using wallet's signDataItem method
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -161,7 +120,7 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
         signed
       })
 
-      setStatus({ type: 'pending', message: '⏳ Preparing signed data...' });
+      setSigningStatus({ type: 'pending', message: '⏳ Preparing signed data...' });
 
       // Handle different types of signed data from wallet
       let signedData;
@@ -195,10 +154,10 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
         dataItemId: dataItem.id
       });
 
-      setStatus({ type: 'pending', message: '⏳ Submitting signed data...' });
+      setSigningStatus({ type: 'pending', message: '⏳ Submitting signed data...' });
 
       // Submit signed data back to server - use the raw signed data
-      const submitResponse = await fetch(`${serverUrl}/${uuid}`, {
+      const submitResponse = await fetch(`${finalServerUrl}/${uuid}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream'
@@ -211,7 +170,7 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
       })
 
       if (submitResponse.ok) {
-        setStatus({
+        setSigningStatus({
           type: 'success',
           message: `✅ Data item signed successfully! ID: ${dataItem.id.slice(0, 12)}...`
         });
@@ -223,7 +182,7 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error('Signing failed:', error);
-      setStatus({
+      setSigningStatus({
         type: 'error',
         message: `❌ Signing failed: ${error.message || 'Unknown error'}`
       });
@@ -233,124 +192,114 @@ export const SigningInterface: React.FC<SigningInterfaceProps> = ({
   };
 
     return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <header className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">🎭 Harlequin Remote Signing</h1>
-          <p className="text-lg text-gray-600">Sign your data item securely with your Arweave wallet</p>
-        </header>
-
-        <div className="space-y-6">
-          {/* Data Information Card */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
-              📋 Data Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Request ID:</label>
-                <span className="mono text-xs text-gray-800 break-all">{uuid}</span>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Data Size:</label>
-                <span className="text-gray-800">{actualDataSize} bytes</span>
-              </div>
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <label className="block text-sm font-medium text-gray-600 mb-1">Status:</label>
-                <span className="font-medium text-green-600">
-                  🟢 Ready to Sign
-                </span>
-              </div>
-            </div>
-
-            {dataPreview && (
-              <div className="mt-4">
-                <h3 className="text-lg font-medium text-gray-700 mb-2">Data Preview:</h3>
-                <pre className="bg-gray-100 p-4 rounded-lg text-sm overflow-x-auto border">
-                  {dataPreview}
-                </pre>
-              </div>
-            )}
-          </div>
-
-          {/* Wallet Connection Card */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
-              🔐 Wallet Connection
-            </h2>
-            {!walletConnected ? (
-              <button
-                onClick={connectWallet}
-                disabled={isLoading}
-                className={`btn btn-lg w-full ${isLoading ? 'btn-disabled' : 'btn-primary'}`}
-              >
-                {isLoading ? (
-                  <span className="flex items-center justify-center">
-                    <div className="loading-spinner mr-2"></div>
-                    Connecting...
-                  </span>
-                ) : (
-                  'Connect Wander/ArConnect Wallet'
-                )}
-              </button>
-            ) : (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-2xl">✅</span>
-                    <div>
-                      <div className="text-sm font-medium text-gray-600">Connected to:</div>
-                      <div className="mono text-sm text-gray-800 break-all">{walletAddress}</div>
-                    </div>
+      <div className="min-h-screen bg-beigeLight">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="space-y-6">
+            {/* Data Information Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-6 w-6" />
+                  Data Information
+                </CardTitle>
+                <CardDescription>
+                  Review the data you're about to sign
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="bg-beigeMedium/20 p-4 rounded-lg">
+                    <label className="block text-sm font-medium text-blackWarm mb-1">Request ID:</label>
+                    <span className="font-mono text-xs text-blackTrue break-all">{uuid}</span>
                   </div>
-                  <button onClick={disconnectWallet} className="btn btn-secondary btn-sm">
-                    Disconnect
-                  </button>
+                  <div className="bg-beigeMedium/20 p-4 rounded-lg">
+                    <label className="block text-sm font-medium text-blackWarm mb-1">Data Size:</label>
+                    <span className="text-blackTrue">{actualDataSize} bytes</span>
+                  </div>
+                  <div className="bg-beigeMedium/20 p-4 rounded-lg">
+                    <label className="block text-sm font-medium text-blackWarm mb-1">Status:</label>
+                    <Badge
+                      variant={status === 'signed' ? 'default' : 'secondary'}
+                      className={status === 'signed' ? 'bg-green-600 hover:bg-green-700' : ''}
+                    >
+                      {status === 'signed' ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Signed
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Ready to Sign
+                        </>
+                      )}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* Signing Section Card */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4 flex items-center">
-              ✍️ Sign Data
-            </h2>
+                {dataPreview && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-medium text-blackTrue mb-2">Data Preview:</h3>
+                    <pre className="bg-beigeMedium/20 p-4 rounded-lg text-sm overflow-x-auto border border-beigeMedium font-mono text-blackTrue">
+                      {dataPreview}
+                    </pre>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-            <div className={`p-4 rounded-lg mb-4 border ${
-              status.type === 'idle' ? 'bg-gray-50 border-gray-200' :
-              status.type === 'pending' ? 'bg-yellow-50 border-yellow-200' :
-              status.type === 'success' ? 'bg-green-50 border-green-200' :
-              'bg-red-50 border-red-200'
-            }`}>
-              <p className={`status-${status.type} font-medium`}>
-                {status.message}
-              </p>
-            </div>
 
-            <button
-              onClick={signDataItem}
-              disabled={!walletConnected || isLoading}
-              className={`btn btn-lg w-full ${
-                !walletConnected || isLoading ? 'btn-disabled' : 'btn-success'
-              }`}
-            >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <div className="loading-spinner mr-2"></div>
-                  Signing...
-                </span>
-              ) : (
-                'Sign Data Item'
-              )}
-            </button>
+
+            {/* Signing Section Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-6 w-6" />
+                  Sign Data
+                </CardTitle>
+                <CardDescription>
+                  Sign your data item with your connected wallet
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className={`p-4 rounded-lg mb-4 border ${
+                  signingStatus.type === 'idle' ? 'bg-beigeMedium/20 border-beigeMedium' :
+                  signingStatus.type === 'pending' ? 'bg-yellow-50 border-yellow-200' :
+                  signingStatus.type === 'success' ? 'bg-green-50 border-green-200' :
+                  'bg-red-50 border-red-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {signingStatus.type === 'pending' && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {signingStatus.type === 'success' && <CheckCircle className="h-4 w-4 text-green-600" />}
+                    {signingStatus.type === 'error' && <AlertCircle className="h-4 w-4 text-red-600" />}
+                    <p className="font-medium text-blackTrue">
+                      {signingStatus.message}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  onClick={signDataItem}
+                  disabled={!walletConnected || isLoading}
+                  size="lg"
+                  className="w-full"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Signing...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Sign Data Item
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
-
-        <footer className="text-center mt-8 text-gray-500">
-          <p>Powered by Harlequin Toolkit • Secure • Decentralized</p>
-        </footer>
       </div>
-    </div>
-  );
+    );
 };

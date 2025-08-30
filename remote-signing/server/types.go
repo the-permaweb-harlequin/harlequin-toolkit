@@ -67,6 +67,8 @@ type Config struct {
 	AllowedOrigins []string      `json:"allowed_origins"`
 	MaxDataSize    int64         `json:"max_data_size"`
 	SigningTimeout time.Duration `json:"signing_timeout"`
+	FrontendPath   string        `json:"frontend_path"` // Path to frontend assets
+	FrontendURL    string        `json:"frontend_url"`  // URL for the frontend (for static deployment)
 }
 
 // DefaultConfig returns the default server configuration
@@ -77,5 +79,7 @@ func DefaultConfig() *Config {
 		AllowedOrigins: []string{"*"},
 		MaxDataSize:   10 * 1024 * 1024, // 10MB
 		SigningTimeout: 30 * time.Minute,
+		FrontendPath:   "", // Will be auto-detected
+		FrontendURL:    "", // Empty by default (uses same host)
 	}
 }

@@ -1,2 +1,5 @@
 ./remote-signing
 test-wallet.json
+
+# Build artifacts
+*.build

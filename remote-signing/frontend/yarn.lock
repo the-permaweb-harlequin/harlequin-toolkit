@@ -614,6 +614,18 @@
   resolved "https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz#a77ea742fab25775145434eb1d2328cf5013ac33"
   integrity sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==
 
+"@radix-ui/react-compose-refs@1.1.2":
+  version "1.1.2"
+  resolved "https://registry.npmjs.org/@radix-ui/react-compose-refs/-/react-compose-refs-1.1.2.tgz#a2c4c47af6337048ee78ff6dc0d090b390d2bb30"
+  integrity sha512-z4eqJvfiNnFMHIIvXP3CY57y2WJs5g2v3X0zm9mEJkrkNv4rDxu+sg9Jh8EkXyeqBkB7SOcboo9dMVqhyrACIg==
+
+"@radix-ui/react-slot@^1.2.3":
+  version "1.2.3"
+  resolved "https://registry.npmjs.org/@radix-ui/react-slot/-/react-slot-1.2.3.tgz#502d6e354fc847d4169c3bc5f189de777f68cfe1"
+  integrity sha512-aeNmHnBxbi2St0au6VBVC7JXFlhLlOnvIIlePNniyUNAClzmtAUEY8/pBiK3iHjufOlwA+c20/8jngo7xcrg8A==
+  dependencies:
+    "@radix-ui/react-compose-refs" "1.1.2"
+
 "@randlabs/communication-bridge@1.0.1":
   version "1.0.1"
   resolved "https://registry.npmjs.org/@randlabs/communication-bridge/-/communication-bridge-1.0.1.tgz#d1ecfc29157afcbb0ca2d73122d67905eecb5bf3"
@@ -1388,6 +1400,18 @@ cipher-base@^1.0.0, cipher-base@^1.0.1, cipher-base@^1.0.3:
   dependencies:
     inherits "^2.0.4"
     safe-buffer "^5.2.1"
+
+class-variance-authority@^0.7.1:
+  version "0.7.1"
+  resolved "https://registry.npmjs.org/class-variance-authority/-/class-variance-authority-0.7.1.tgz#4008a798a0e4553a781a57ac5177c9fb5d043787"
+  integrity sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==
+  dependencies:
+    clsx "^2.1.1"
+
+clsx@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.npmjs.org/clsx/-/clsx-2.1.1.tgz#eed397c9fd8bd882bfb18deab7102049a2f32999"
+  integrity sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==
 
 color-convert@^2.0.1:
   version "2.0.1"
@@ -2305,6 +2329,11 @@ lru-cache@^10.2.0:
   resolved "https://registry.npmjs.org/lru-cache/-/lru-cache-10.4.3.tgz#410fc8a17b70e598013df257c2446b7f3383f119"
   integrity sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==
 
+lucide-react@^0.542.0:
+  version "0.542.0"
+  resolved "https://registry.npmjs.org/lucide-react/-/lucide-react-0.542.0.tgz#3f170afb0c5697e3e21230b6d69ad8a1be6b281a"
+  integrity sha512-w3hD8/SQB7+lzU2r4VdFyzzOzKnUjTZIF/MQJGSSvni7Llewni4vuViRppfRAa2guOsY5k4jZyxw/i9DQHv+dw==
+
 magic-string@^0.30.3:
   version "0.30.18"
   resolved "https://registry.npmjs.org/magic-string/-/magic-string-0.30.18.tgz#905bfbbc6aa5692703a93db26a9edcaa0007d2bb"
@@ -3148,6 +3177,11 @@ supports-preserve-symlinks-flag@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/supports-preserve-symlinks-flag/-/supports-preserve-symlinks-flag-1.0.0.tgz#6eda4bd344a3c94aea376d4cc31bc77311039e09"
   integrity sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==
+
+tailwind-merge@^3.3.1:
+  version "3.3.1"
+  resolved "https://registry.npmjs.org/tailwind-merge/-/tailwind-merge-3.3.1.tgz#a7e7db7c714f6020319e626ecfb7e7dac8393a4b"
+  integrity sha512-gBXpgUm/3rp1lMZZrM/w7D8GKqshif0zAymAhbCyIt8KMe+0v9DQ7cdYLR4FHH/cKpdTXb+A/tKKU3eolfsI+g==
 
 tailwindcss@^3.4.0:
   version "3.4.17"

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
@@ -83,8 +86,42 @@ func (s *Server) StartWithTemplates(ctx context.Context, templatePath string) er
 	router.GET("/events/:uuid", s.HandleSSE)
 
 	// Serve static frontend files
-	router.Static("/static", "./frontend/dist/assets")
-	router.StaticFile("/favicon.ico", "./frontend/dist/vite.svg")
+	frontendPath := s.config.FrontendPath
+	if frontendPath == "" {
+		// Auto-detect frontend path relative to server package
+		_, filename, _, _ := runtime.Caller(0)
+		serverDir := filepath.Dir(filename)
+		projectRoot := filepath.Join(serverDir, "..")
+		frontendPath = filepath.Join(projectRoot, "frontend/dist")
+	}
+
+	// Check if frontend assets exist
+	assetsPath := filepath.Join(frontendPath, "assets")
+	if _, err := os.Stat(assetsPath); err == nil {
+		router.Static("/static", assetsPath)
+	} else {
+		log.Printf("⚠️  Frontend assets not found at %s, static files will not be served", assetsPath)
+	}
+
+	// Serve favicon
+	faviconPath := filepath.Join(frontendPath, "vite.svg")
+	if _, err := os.Stat(faviconPath); err == nil {
+		router.StaticFile("/favicon.ico", faviconPath)
+	}
+
+	// Serve Harlequin mascot images
+	mascotPath := filepath.Join(frontendPath, "harlequin_mascot.png")
+	if _, err := os.Stat(mascotPath); err == nil {
+		router.StaticFile("/harlequin_mascot.png", mascotPath)
+	}
+
+	mascotDarkPath := filepath.Join(frontendPath, "harlequin_mascot_dark.png")
+	if _, err := os.Stat(mascotDarkPath); err == nil {
+		router.StaticFile("/harlequin_mascot_dark.png", mascotDarkPath)
+	}
+
+	// Test page route - serve React app directly
+	router.GET("/test", s.HandleGetSigningForm)
 
 	// Frontend signing routes - serve React app directly
 	router.GET("/sign/:uuid", s.HandleGetSigningForm)

@@ -1,10 +1,10 @@
-# 🎭 Harlequin Remote Signing Server
+# 🎭 Harlequin Remote Signing Library
 
-A standalone Go server that enables remote signing of raw data through a web interface. This service allows applications to submit any data for signing and provides a user-friendly web interface where users can sign the data with their wallet extensions.
+A Go library that provides remote signing capabilities for Arweave data items. This package enables applications to submit data for signing and provides a user-friendly web interface where users can sign the data with their wallet extensions.
 
 ## 🏗️ Package Structure
 
-This project is organized into reusable packages:
+This project is organized as a reusable library:
 
 ```
 remote-signing/
@@ -12,50 +12,85 @@ remote-signing/
 │   ├── types.go              # Data structures and types
 │   ├── server.go             # Main server implementation
 │   ├── handlers.go           # HTTP route handlers
-│   └── websocket.go          # WebSocket management
-├── cmd/remote-signing/       # CLI application
-│   ├── main.go              # CLI entry point
-│   └── cli.go               # CLI command handling
+│   ├── websocket.go          # WebSocket management
+│   └── signing_server.go     # High-level SigningServer API
+├── frontend/                  # React-based signing interface
 ├── example/                  # Usage examples
-│   ├── simple/              # Basic server usage
-│   └── integration/         # Advanced integration example
-└── templates/               # HTML templates for web interface
+│   ├── simple_upload.go     # Basic upload and sign example
+│   ├── server_only.go       # Server-only usage example
+│   ├── custom_config.go     # Custom configuration example
+│   └── example.txt          # Sample file for examples
+├── docs/                     # Documentation
+└── integration_test.go       # Integration tests
 ```
 
 ## 🚀 Features
 
 - **Reusable Server Package** - Import and use programmatically
-- **Standalone CLI** - Complete command-line interface
+- **High-level SigningServer API** - Simple upload and sign workflow
 - **HTTP API** for submitting and retrieving raw data
-- **WebSocket support** for real-time callbacks and notifications
-- **Beautiful web interface** for signing data with Wander/ArConnect wallet
+- **Server-Sent Events (SSE)** for real-time callbacks and notifications
+- **Beautiful React web interface** for signing data with Wander/ArConnect wallet
 - **Arweave data item signing** using arbundles and proper ANS-104 format
+- **Automatic bundler upload** to ArDrive bundler
 - **Configurable timeouts** and data size limits
 - **CORS support** for cross-origin requests
 - **OpenAPI/Swagger documentation** at `/api-docs` endpoint
 
 ## 📦 Installation & Usage
 
-### Quick Install (Binary)
+### As a Go Library
 
-Install the latest release with a single command:
+Add to your Go module:
 
 ```bash
-# Install latest version
-curl -fsSL https://remote_signing_harlequin.arweave.dev | sh
-
-# Install specific version
-curl -fsSL https://remote_signing_harlequin.arweave.dev | VERSION=1.0.0 sh
-
-# Install to custom directory
-curl -fsSL https://remote_signing_harlequin.arweave.dev | INSTALL_DIR=/usr/local/bin sh
+go get github.com/the-permaweb-harlequin/harlequin-toolkit/remote-signing/server
 ```
 
-Or download binaries directly from the [releases](https://github.com/the-permaweb-harlequin/harlequin-toolkit/releases).
+### Building the Library
 
-### As a Library
+The library includes a build script that automatically builds the frontend and server:
 
-Import the server package in your Go application:
+```bash
+# Build server package only
+./scripts/build.sh
+
+# Build server package and examples
+./scripts/build.sh --examples
+```
+
+The build script:
+
+- ✅ Builds the React frontend with Vite
+- ✅ Builds the Go server package
+- ✅ Optionally builds examples with `.build` extensions
+- ✅ Uses relative paths that work from any directory
+
+### Frontend Styling
+
+The frontend uses the Harlequin brand colors and shadcn/ui components:
+
+**🎨 Brand Colors:**
+
+- Red Dark: `#902f17`
+- Red Medium: `#93513a`
+- Black True: `#191913`
+- Black Warm: `#564f41`
+- Beige Light: `#efdec2`
+- Beige Medium: `#d1b592`
+
+**🔧 Components:**
+
+- Button, Card, Badge components with Harlequin styling
+- Lucide React icons for consistent iconography
+- Responsive design with Tailwind CSS
+- Custom scrollbars and hover effects
+- Navbar with Harlequin mascot logo and wallet connection
+- GitHub and documentation links in navbar
+
+### Basic Usage
+
+Import and use the server package in your Go application:
 
 ```go
 import "github.com/the-permaweb-harlequin/harlequin-toolkit/remote-signing/server"
@@ -71,25 +106,62 @@ ctx := context.Background()
 err := srv.Start(ctx)
 ```
 
-### As a CLI Tool
+### High-Level SigningServer API
 
-Build and run the standalone CLI:
+For a complete upload-and-sign workflow:
+
+```go
+import "github.com/the-permaweb-harlequin/harlequin-toolkit/remote-signing/server"
+
+// Create signing server
+signingServer := server.NewSigningServer(config)
+defer signingServer.Close()
+
+// Create upload request
+uploadReq := &server.UploadRequest{
+    Data:     fileData,
+    Filename: "myfile.txt",
+    Tags: []types.Tag{
+        {Name: "Content-Type", Value: "text/plain"},
+        {Name: "Filename", Value: "myfile.txt"},
+    },
+    Target: "",
+    Anchor: "",
+}
+
+// Upload and sign
+result, err := signingServer.Upload(uploadReq)
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("✅ Upload completed!\n")
+fmt.Printf("🆔 DataItem ID: %s\n", result.DataItemID)
+fmt.Printf("📤 Bundler response: %s\n", result.BundlerResponse)
+```
+
+### Examples
+
+See the `example/` directory for complete working examples:
+
+- **`simple_upload.go`** - Basic upload and sign workflow
+- **`server_only.go`** - Using the server package directly
+- **`custom_config.go`** - Custom configuration and tags
+
+**Note**: Examples use build tags to avoid conflicts. Use `-tags example` when running them.
+
+Run any example with:
 
 ```bash
-# Build the CLI
-make build
+cd example
+go run -tags example simple_upload.go
+```
 
-# Start the server
-./remote-signing start
+Build examples with `.build` extension:
 
-# Upload a file for signing
-./remote-signing upload ./data.json
-
-# Upload without waiting for completion
-./remote-signing upload ./image.png --no-wait
-
-# Run with custom settings
-./remote-signing start --port 9000 --host 0.0.0.0
+```bash
+cd example
+go build -tags example -o simple_upload.build simple_upload.go
 ```
 
 ### Via Harlequin CLI

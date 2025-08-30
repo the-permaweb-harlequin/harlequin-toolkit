@@ -1,0 +1,13 @@
+Hello, Arweave!
+
+This is a sample file for testing the Harlequin Remote Signing Library.
+
+The library provides a simple way to upload data for signing and automatically handles:
+- Server startup and management
+- DataItem creation with proper tags and anchors
+- Browser opening for wallet signing
+- Waiting for signing completion
+- DataItem ID extraction
+- Automatic bundler upload
+
+This makes it easy to integrate remote signing into any Go application!

@@ -19,6 +19,7 @@ type RemoteSigningConfig struct {
 	AllowedOrigins []string `json:"allowed_origins"`
 	MaxDataSize    int64    `json:"max_data_size"`
 	SigningTimeout int      `json:"signing_timeout_minutes"`
+	FrontendURL    string   `json:"frontend_url"` // URL for the frontend (for development)
 }
 
 // DefaultRemoteSigningConfig returns the default configuration
@@ -29,6 +30,7 @@ func DefaultRemoteSigningConfig() *RemoteSigningConfig {
 		AllowedOrigins: []string{"*"},
 		MaxDataSize:   10 * 1024 * 1024, // 10MB
 		SigningTimeout: 30,               // 30 minutes
+		FrontendURL:    "",               // Empty by default (uses same host)
 	}
 }
 
@@ -101,6 +103,9 @@ func startRemoteSigningServer(ctx context.Context, args []string) error {
 	cmdArgs = append(cmdArgs, "--host", config.Host)
 	cmdArgs = append(cmdArgs, "--timeout", strconv.Itoa(config.SigningTimeout))
 	cmdArgs = append(cmdArgs, "--max-size", strconv.FormatInt(config.MaxDataSize, 10))
+	if config.FrontendURL != "" {
+		cmdArgs = append(cmdArgs, "--frontend-url", config.FrontendURL)
+	}
 
 	// Create and start the command
 	cmd := exec.CommandContext(ctx, remoteSigningPath, cmdArgs...)
@@ -200,6 +205,12 @@ func parseRemoteSigningArgs(args []string, config *RemoteSigningConfig) error {
 			}
 			config.MaxDataSize = maxSize
 			i++
+		case "--frontend-url":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--frontend-url requires a value")
+			}
+			config.FrontendURL = args[i+1]
+			i++
 		case "--help":
 			printRemoteSigningHelp()
 			os.Exit(0)
@@ -285,11 +296,13 @@ func printRemoteSigningHelp() {
 	fmt.Println("  -h, --host <host>        Server host (default: localhost)")
 	fmt.Println("  -t, --timeout <minutes>  Signing timeout in minutes (default: 30)")
 	fmt.Println("      --max-size <bytes>   Maximum data item size in bytes (default: 10MB)")
+	fmt.Println("      --frontend-url <url> Frontend URL for development (e.g., http://localhost:5173)")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  harlequin remote-signing start")
 	fmt.Println("  harlequin remote-signing start --port 9000")
 	fmt.Println("  harlequin remote-signing start --host 0.0.0.0 --port 8080")
+	fmt.Println("  harlequin remote-signing start --frontend-url http://localhost:5173")
 	fmt.Println("  harlequin remote-signing status")
 	fmt.Println()
 	fmt.Println("How it works:")

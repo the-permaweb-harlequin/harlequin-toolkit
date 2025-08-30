@@ -1,69 +1,118 @@
-# React + TypeScript + Vite
+# Harlequin Remote Signing Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend application for the Harlequin Remote Signing service. It can be deployed as a static site and configured to connect to different signing servers.
 
-Currently, two official plugins are available:
+## 🚀 Usage
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### Test Page
 
-## Expanding the ESLint configuration
+For development and testing, visit the test page:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+http://localhost:8080/test
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Signing Pages
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+For actual signing workflows, use URLs with UUIDs:
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+http://localhost:8080/sign/<uuid>
+```
+
+## 🔧 Server Configuration
+
+The frontend can connect to different signing servers using URL parameters:
+
+### Default (Same Host)
+
+If no server parameter is provided, it defaults to the same host:
+
+```
+http://localhost:8080/sign/123e4567-e89b-12d3-a456-426614174000
+```
+
+### Custom Server
+
+Specify a different server using the `server` parameter:
+
+```
+http://localhost:8080/sign/123e4567-e89b-12d3-a456-426614174000?server=https://my-signing-server.com
+```
+
+### Test Page with Custom Server
+
+```
+http://localhost:8080/test?server=https://my-signing-server.com
+```
+
+## 📦 Deployment
+
+### Static Site Deployment
+
+The frontend can be deployed as a static site to any hosting service:
+
+1. Build the application:
+
+   ```bash
+   yarn build
+   ```
+
+2. Deploy the `dist/` folder to your hosting service (Netlify, Vercel, GitHub Pages, etc.)
+
+3. Configure the server URL when linking to the signing interface:
+   ```html
+   <a href="https://my-frontend.com/sign/123e4567-e89b-12d3-a456-426614174000?server=https://my-signing-server.com">
+     Sign Document
+   </a>
+   ```
+
+### Environment Configuration
+
+You can also set a default server URL by modifying the `getServerUrl()` function in the components.
+
+## 🎨 Development
+
+### Running Locally
+
+```bash
+yarn dev
+```
+
+### Building for Production
+
+```bash
+yarn build
+```
+
+### Test Mode
+
+The test page (`/test`) provides mock data for development and styling without requiring a real signing server.
+
+## 🔗 Integration Examples
+
+### CLI Integration
+
+When the CLI opens the signing interface, it can specify the server:
+
+```go
+url := fmt.Sprintf("https://my-frontend.com/sign/%s?server=%s", uuid, serverURL)
+```
+
+### Direct Links
+
+Create direct links to signing requests:
+
+```html
+<a href="https://my-frontend.com/sign/abc123?server=https://signing.example.com"> Sign Document </a>
+```
+
+## 🛠️ Architecture
+
+- **React + TypeScript**: Modern frontend framework
+- **Tailwind CSS**: Utility-first styling
+- **shadcn/ui**: Component library
+- **Vite**: Build tool and dev server
+- **URL Parameters**: Server configuration via query strings
+
+The frontend is designed to be completely decoupled from the signing server, making it easy to deploy separately and connect to different server instances.

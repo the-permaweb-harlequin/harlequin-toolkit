@@ -7,6 +7,21 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Harlequin Brand Colors
+        redDark: '#902f17',
+        redMedium: '#93513a',
+        redDeep: '#702411',
+        blackTrue: '#191913',
+        blackWarm: '#564f41',
+        blackBrown: '#392f25',
+        skinLight: '#b99a77',
+        skinMedium: '#a58163',
+        skinDark: '#796b57',
+        beigeLight: '#efdec2',
+        beigeMedium: '#d1b592',
+        beigeDark: '#dfcaac',
+
+        // Legacy colors for compatibility
         primary: {
           50: '#f0f9ff',
           500: '#3b82f6',

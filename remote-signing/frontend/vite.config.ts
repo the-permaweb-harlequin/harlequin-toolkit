@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import {nodePolyfills} from 'vite-plugin-node-polyfills'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -22,6 +23,12 @@ export default defineConfig({
   ],
   define: {
     global: 'globalThis',
+  },
+  resolve: {
+    alias: {
+      // Path alias for components
+      '@': path.resolve(__dirname, './src'),
+    },
   },
   build: {
     minify: false,

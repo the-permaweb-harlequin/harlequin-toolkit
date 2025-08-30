@@ -540,11 +540,16 @@ func BenchmarkDataRetrieval(b *testing.B) {
 	}
 
 	submitBody, _ := json.Marshal(submitReq)
-	resp, _ := http.Post(testServerURL+"/", "application/json", bytes.NewReader(submitBody))
+	resp, err := http.Post(testServerURL+"/", "application/json", bytes.NewReader(submitBody))
+	if err != nil {
+		b.Fatal(err)
+	}
 	defer resp.Body.Close()
 
 	var submitResp server.SubmitDataResponse
-	json.NewDecoder(resp.Body).Decode(&submitResp)
+	if err := json.NewDecoder(resp.Body).Decode(&submitResp); err != nil {
+		b.Fatal(err)
+	}
 	uuid := submitResp.UUID
 
 	b.ResetTimer()

@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -324,6 +328,13 @@ func (s *Server) HandleGetSignedData(c *gin.Context) {
 func (s *Server) HandleGetSigningForm(c *gin.Context) {
 	itemUUID := c.Param("uuid")
 
+	// Check if we're on the test route
+	if c.Request.URL.Path == "/test" {
+		// For test route, just serve the React app without UUID validation
+		serveReactApp(c, "Harlequin Remote Signing - Test Mode")
+		return
+	}
+
 	// Validate UUID format
 	if _, err := uuid.Parse(itemUUID); err != nil {
 		c.HTML(http.StatusBadRequest, "error.html", gin.H{
@@ -346,43 +357,12 @@ func (s *Server) HandleGetSigningForm(c *gin.Context) {
 
 		if signingRequest.IsSigned {
 		// Serve React app with signed status indication
-		c.Header("Content-Type", "text/html")
-		indexHTML := `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Harlequin Remote Signing - Already Signed</title>
-    <script type="module" crossorigin src="/static/index-CDggTfCB.js"></script>
-    <link rel="stylesheet" crossorigin href="/static/index-D5Bf9vNZ.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
-</html>`
-		c.Data(http.StatusOK, "text/html", []byte(indexHTML))
+		serveReactApp(c, "Harlequin Remote Signing - Already Signed")
 		return
 	}
 
 	// Serve the React app directly
-	c.Header("Content-Type", "text/html")
-	indexHTML := `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Harlequin Remote Signing</title>
-    <script type="module" crossorigin src="/static/index-CDggTfCB.js"></script>
-    <link rel="stylesheet" crossorigin href="/static/index-D5Bf9vNZ.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
-</html>`
-
-	c.Data(http.StatusOK, "text/html", []byte(indexHTML))
+	serveReactApp(c, "Harlequin Remote Signing")
 }
 
 
@@ -436,7 +416,15 @@ func (s *Server) HandleGetStatus(c *gin.Context) {
 // Helper methods
 
 func (s *Server) generateSigningURL(uuid string) string {
-	return s.getServerURL() + "/sign/" + uuid
+	// If a custom frontend URL is configured, use it as the host
+	// Otherwise, use the server URL as the host
+	hostURL := s.getServerURL()
+	if s.config.FrontendURL != "" {
+		hostURL = s.config.FrontendURL
+	}
+
+	// Always include the server parameter so the frontend knows where to make API calls
+	return fmt.Sprintf("%s/sign/%s?server=%s", hostURL, uuid, s.getServerURL())
 }
 
 func (s *Server) getServerURL() string {
@@ -573,4 +561,55 @@ func (s *Server) HandleHealth(c *gin.Context) {
 func (s *Server) notifyCallback(callbackURL string, response *SignedResponse) {
 	// TODO: Implement HTTP callback notification
 	// This would make an HTTP POST request to the callback URL with the signed response
+}
+
+// serveReactApp is a helper function to serve the React app with the correct assets
+func serveReactApp(c *gin.Context, title string) {
+	c.Header("Content-Type", "text/html")
+
+	// Get the frontend path
+	_, filename, _, _ := runtime.Caller(0)
+	serverDir := filepath.Dir(filename)
+	projectRoot := filepath.Join(serverDir, "..")
+	frontendPath := filepath.Join(projectRoot, "frontend/dist")
+	assetsPath := filepath.Join(frontendPath, "assets")
+
+	// Find the current JS and CSS files
+	var jsFile, cssFile string
+	if entries, err := os.ReadDir(assetsPath); err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				name := entry.Name()
+				if strings.HasSuffix(name, ".js") && strings.HasPrefix(name, "index-") {
+					jsFile = name
+				} else if strings.HasSuffix(name, ".css") && strings.HasPrefix(name, "index-") {
+					cssFile = name
+				}
+			}
+		}
+	}
+
+	// Fallback to default names if not found
+	if jsFile == "" {
+		jsFile = "index-DLkHF8kv.js"
+	}
+	if cssFile == "" {
+		cssFile = "index-Cwd2Qldy.css"
+	}
+
+	indexHTML := fmt.Sprintf(`<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>%s</title>
+    <script type="module" crossorigin src="/static/%s"></script>
+    <link rel="stylesheet" crossorigin href="/static/%s">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`, title, jsFile, cssFile)
+	c.Data(http.StatusOK, "text/html", []byte(indexHTML))
 }
