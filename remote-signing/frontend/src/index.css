@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 min-h-screen;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500;
+  }
+
+  .btn-success {
+    @apply bg-success-600 text-white hover:bg-success-700 focus:ring-success-500;
+  }
+
+  .btn-disabled {
+    @apply bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  .status-idle {
+    @apply text-gray-600;
+  }
+
+  .status-pending {
+    @apply text-warning-600;
+  }
+
+  .status-success {
+    @apply text-success-600;
+  }
+
+  .status-error {
+    @apply text-error-600;
+  }
+
+  .mono {
+    @apply font-mono text-sm;
+  }
+
+  .loading-spinner {
+    @apply w-8 h-8 border-4 border-gray-200 border-t-primary-600 rounded-full animate-spin;
+  }
+}

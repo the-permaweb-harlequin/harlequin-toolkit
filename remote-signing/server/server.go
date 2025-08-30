@@ -66,7 +66,7 @@ func (s *Server) StartWithTemplates(ctx context.Context, templatePath string) er
 	router.Use(gin.Recovery())
 	router.Use(s.corsMiddleware())
 
-	// Load HTML templates if provided
+	// Load HTML templates if provided (for backward compatibility)
 	if templatePath != "" {
 		router.LoadHTMLGlob(templatePath + "/*")
 	}
@@ -79,10 +79,18 @@ func (s *Server) StartWithTemplates(ctx context.Context, templatePath string) er
 	// WebSocket endpoint
 	router.GET("/ws", s.HandleWebSocket)
 
-	// Frontend signing routes (only if templates are loaded)
-	if templatePath != "" {
-		router.GET("/sign/:uuid", s.HandleGetSigningForm)
-	}
+	// SSE endpoint for real-time updates
+	router.GET("/events/:uuid", s.HandleSSE)
+
+	// Serve static frontend files
+	router.Static("/static", "./frontend/dist/assets")
+	router.StaticFile("/favicon.ico", "./frontend/dist/vite.svg")
+
+	// Frontend signing routes - serve React app directly
+	router.GET("/sign/:uuid", s.HandleGetSigningForm)
+
+	// Signed data endpoint
+	router.GET("/signed/:uuid", s.HandleGetSignedData)
 
 	// Health check
 	router.GET("/health", s.HandleHealth)

@@ -15,9 +15,11 @@ import (
 // WebSocketHub manages WebSocket connections and message broadcasting
 type WebSocketHub struct {
 	clients    map[string]*WebSocketClient
+	sseClients map[string]map[string]chan SSEEvent // uuid -> clientID -> channel
 	register   chan *WebSocketClient
 	unregister chan *WebSocketClient
 	broadcast  chan WebSocketMessage
+	sseEvents  chan SSEEvent
 	mutex      sync.RWMutex
 }
 
@@ -25,9 +27,11 @@ type WebSocketHub struct {
 func NewWebSocketHub() *WebSocketHub {
 	return &WebSocketHub{
 		clients:    make(map[string]*WebSocketClient),
+		sseClients: make(map[string]map[string]chan SSEEvent),
 		register:   make(chan *WebSocketClient),
 		unregister: make(chan *WebSocketClient),
 		broadcast:  make(chan WebSocketMessage, 256),
+		sseEvents:  make(chan SSEEvent, 256),
 	}
 }
 
@@ -84,6 +88,22 @@ func (h *WebSocketHub) Run() {
 				}
 			}
 			h.mutex.RUnlock()
+
+		case event := <-h.sseEvents:
+			h.mutex.RLock()
+			if clients, ok := h.sseClients[event.UUID]; ok {
+				for clientID, clientChan := range clients {
+					select {
+					case clientChan <- event:
+						// Event sent successfully
+					default:
+						// Client channel is full or closed, remove it
+						delete(clients, clientID)
+						close(clientChan)
+					}
+				}
+			}
+			h.mutex.RUnlock()
 		}
 	}
 }
@@ -92,6 +112,43 @@ func (h *WebSocketHub) Run() {
 func (h *WebSocketHub) BroadcastToUUID(uuid string, message WebSocketMessage) {
 	message.UUID = uuid
 	h.broadcast <- message
+}
+
+// BroadcastSSEToUUID sends an SSE event to all clients subscribed to a specific UUID
+func (h *WebSocketHub) BroadcastSSEToUUID(uuid string, event SSEEvent) {
+	event.UUID = uuid
+	h.sseEvents <- event
+}
+
+// RegisterSSEClient registers an SSE client for a specific UUID
+func (h *WebSocketHub) RegisterSSEClient(uuid, clientID string, clientChan chan SSEEvent) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	if h.sseClients[uuid] == nil {
+		h.sseClients[uuid] = make(map[string]chan SSEEvent)
+	}
+	h.sseClients[uuid][clientID] = clientChan
+	log.Printf("SSE client registered: %s for UUID %s", clientID, uuid)
+}
+
+// UnregisterSSEClient unregisters an SSE client
+func (h *WebSocketHub) UnregisterSSEClient(uuid, clientID string) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
+	if clients, ok := h.sseClients[uuid]; ok {
+		if clientChan, exists := clients[clientID]; exists {
+			close(clientChan)
+			delete(clients, clientID)
+			log.Printf("SSE client unregistered: %s for UUID %s", clientID, uuid)
+		}
+
+		// Clean up empty UUID entry
+		if len(clients) == 0 {
+			delete(h.sseClients, uuid)
+		}
+	}
 }
 
 // BroadcastToClient sends a message to a specific client
@@ -162,7 +219,7 @@ func (s *Server) readWebSocket(client *WebSocketClient) {
 		client.Conn.Close()
 	}()
 
-	client.Conn.SetReadLimit(512)
+	client.Conn.SetReadLimit(1024 * 1024) // 1MB limit
 	client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	client.Conn.SetPongHandler(func(string) error {
 		client.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))

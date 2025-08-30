@@ -53,6 +53,13 @@ const (
 	MessageTypeHeartbeat = "heartbeat"
 )
 
+// SSEEvent represents a Server-Sent Event
+type SSEEvent struct {
+	Type string      `json:"type"`
+	UUID string      `json:"uuid,omitempty"`
+	Data interface{} `json:"data"`
+}
+
 // Config represents the server configuration
 type Config struct {
 	Port           int           `json:"port"`

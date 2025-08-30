@@ -28,7 +28,8 @@ remote-signing/
 - **Standalone CLI** - Complete command-line interface
 - **HTTP API** for submitting and retrieving raw data
 - **WebSocket support** for real-time callbacks and notifications
-- **Beautiful web interface** for signing data with wallet extensions
+- **Beautiful web interface** for signing data with Wander/ArConnect wallet
+- **Arweave data item signing** using arbundles and proper ANS-104 format
 - **Configurable timeouts** and data size limits
 - **CORS support** for cross-origin requests
 - **OpenAPI/Swagger documentation** at `/api-docs` endpoint
@@ -78,8 +79,14 @@ Build and run the standalone CLI:
 # Build the CLI
 make build
 
-# Run with default settings
+# Start the server
 ./remote-signing start
+
+# Upload a file for signing
+./remote-signing upload ./data.json
+
+# Upload without waiting for completion
+./remote-signing upload ./image.png --no-wait
 
 # Run with custom settings
 ./remote-signing start --port 9000 --host 0.0.0.0
@@ -92,6 +99,44 @@ Integrate with the main Harlequin CLI:
 ```bash
 harlequin remote-signing start --port 8080
 ```
+
+### Upload Command Workflow
+
+The `upload` command provides a complete file-to-signature workflow:
+
+```bash
+# Basic upload
+./remote-signing upload ./my-file.json
+
+# Upload to remote server
+./remote-signing upload ./document.pdf --host signing.example.com --port 9000
+
+# Upload without waiting for user to sign
+./remote-signing upload ./data.bin --no-wait
+```
+
+**What happens:**
+
+1. 🔍 Checks if a server is running (auto-starts one if needed)
+2. 📁 Reads the specified file from disk
+3. 🚀 Uploads the raw file data to the remote signing server
+4. 🌐 Opens the signing URL in your default browser
+5. ⏳ Waits for you to connect your wallet and sign the data
+6. 🎉 Reports success when signing is complete
+7. 🛑 Automatically stops the server if it was auto-started
+
+**Smart Server Management:**
+
+- Automatically detects if a server is already running
+- Starts a temporary server if none is found
+- Cleans up auto-started servers when upload completes
+- In `--no-wait` mode, leaves auto-started servers running for signing
+
+**WebSocket Integration:**
+
+- Real-time status updates during the signing process
+- Automatic completion detection when data item is signed
+- Graceful handling of connection issues and user cancellation
 
 ## 🏗️ Architecture
 
@@ -117,6 +162,35 @@ harlequin remote-signing start --port 8080
 │   & Submits     │                 │   Original Client │
 └─────────────────┘                 └───────────────────┘
 ```
+
+## 🔌 Wallet Requirements
+
+The signing interface requires a compatible Arweave wallet extension:
+
+### Recommended Wallet
+
+- **[Wander](https://wander.app/)** (formerly ArConnect) - Latest browser extension with full ANS-104 support
+
+### Alternative Wallets
+
+- **ArConnect** - Legacy extension (still supported)
+- Any wallet implementing the Arweave wallet standard
+
+### Required Permissions
+
+The signing interface requests the following permissions:
+
+- `ACCESS_ADDRESS` - Get wallet address for display
+- `ACCESS_PUBLIC_KEY` - Required for data item creation
+- `SIGN_TRANSACTION` - Sign data items
+- `ACCESS_ALL_ADDRESSES` - Optional, for multi-address wallets
+
+### Supported Features
+
+- **ANS-104 Data Items** - Proper Arweave data item format
+- **Automatic Tagging** - Adds metadata tags to signed items
+- **Real-time Feedback** - Progress updates during signing
+- **Error Handling** - User-friendly error messages
 
 ## 📚 API Documentation
 

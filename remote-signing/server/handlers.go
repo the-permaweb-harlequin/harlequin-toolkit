@@ -246,11 +246,14 @@ func (s *Server) HandleSubmitSignedData(c *gin.Context) {
 		Success:    true,
 	}
 
-	// Notify WebSocket clients about successful signing
-	s.hub.BroadcastToUUID(itemUUID, WebSocketMessage{
-		Type: MessageTypeSigned,
-		UUID: itemUUID,
-		Payload: signedResponse,
+	// Notify SSE clients about successful signing (metadata only)
+	s.hub.BroadcastSSEToUUID(itemUUID, SSEEvent{
+		Type: "signed",
+		Data: map[string]interface{}{
+			"uuid":      itemUUID,
+			"signed_at": signedResponse.SignedAt,
+			"success":   true,
+		},
 	})
 
 	// If there's a callback URL, notify the original client
@@ -263,6 +266,50 @@ func (s *Server) HandleSubmitSignedData(c *gin.Context) {
 		"uuid": itemUUID,
 		"signed_at": signedResponse.SignedAt,
 	})
+}
+
+// HandleGetSignedData serves the signed binary data for a specific signing request
+// @Summary Get signed data
+// @Description Get the signed binary data for a specific signing request
+// @Tags Data
+// @Produce application/octet-stream
+// @Param uuid path string true "Signing request UUID"
+// @Success 200 {file} binary "Signed binary data"
+// @Failure 404 {object} ErrorResponse "Signing request not found or not signed"
+// @Router /signed/{uuid} [get]
+func (s *Server) HandleGetSignedData(c *gin.Context) {
+	itemUUID := c.Param("uuid")
+
+	// Validate UUID format
+	if _, err := uuid.Parse(itemUUID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid UUID format",
+		})
+		return
+	}
+
+	s.mutex.RLock()
+	signingRequest, exists := s.signingRequests[itemUUID]
+	s.mutex.RUnlock()
+
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Signing request not found",
+		})
+		return
+	}
+
+	if !signingRequest.IsSigned {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Signing request not yet signed",
+		})
+		return
+	}
+
+	// Serve the signed binary data directly
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=signed-data-%s.bin", itemUUID))
+	c.Data(http.StatusOK, "application/octet-stream", signingRequest.SignedData)
 }
 
 // HandleGetSigningForm serves the HTML form for signing data
@@ -297,23 +344,47 @@ func (s *Server) HandleGetSigningForm(c *gin.Context) {
 		return
 	}
 
-	if signingRequest.IsSigned {
-		c.HTML(http.StatusOK, "already_signed.html", gin.H{
-			"uuid": itemUUID,
-			"signed_at": signingRequest.CreatedAt,
-		})
+		if signingRequest.IsSigned {
+		// Serve React app with signed status indication
+		c.Header("Content-Type", "text/html")
+		indexHTML := `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harlequin Remote Signing - Already Signed</title>
+    <script type="module" crossorigin src="/static/index-CDggTfCB.js"></script>
+    <link rel="stylesheet" crossorigin href="/static/index-D5Bf9vNZ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`
+		c.Data(http.StatusOK, "text/html", []byte(indexHTML))
 		return
 	}
 
-	c.HTML(http.StatusOK, "signing_form.html", gin.H{
-		"uuid": itemUUID,
-		"data": signingRequest.Data,
-		"data_size": len(signingRequest.Data),
-		"created_at": signingRequest.CreatedAt,
-		"server_url": s.getServerURL(),
-		"websocket_url": s.getWebSocketURL(),
-	})
+	// Serve the React app directly
+	c.Header("Content-Type", "text/html")
+	indexHTML := `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Harlequin Remote Signing</title>
+    <script type="module" crossorigin src="/static/index-CDggTfCB.js"></script>
+    <link rel="stylesheet" crossorigin href="/static/index-D5Bf9vNZ.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`
+
+	c.Data(http.StatusOK, "text/html", []byte(indexHTML))
 }
+
 
 // HandleGetStatus handles GET /status - returns server status and statistics
 // @Summary Get server status
@@ -391,6 +462,96 @@ func (s *Server) setExpirationTimer(uuid string) {
 			UUID: uuid,
 			Error: "Signing request expired",
 		})
+	}
+}
+
+// HandleSSE handles GET /events/:uuid - Server-Sent Events for real-time updates
+// @Summary Server-Sent Events
+// @Description Real-time event stream for signing request updates
+// @Tags Events
+// @Produce text/event-stream
+// @Param uuid path string true "Signing request UUID"
+// @Success 200 {string} string "Event stream"
+// @Router /events/{uuid} [get]
+func (s *Server) HandleSSE(c *gin.Context) {
+	itemUUID := c.Param("uuid")
+
+	// Validate UUID format
+	if _, err := uuid.Parse(itemUUID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid UUID format",
+		})
+		return
+	}
+
+	// Set headers for SSE
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Headers", "Cache-Control")
+
+	// Create a channel for this client
+	clientChan := make(chan SSEEvent, 10)
+	clientID := uuid.New().String()
+
+	// Register this client
+	s.hub.RegisterSSEClient(itemUUID, clientID, clientChan)
+	defer s.hub.UnregisterSSEClient(itemUUID, clientID)
+
+	// Check if signing is already complete
+	s.mutex.RLock()
+	signingRequest, exists := s.signingRequests[itemUUID]
+	isSigned := exists && signingRequest.IsSigned
+	s.mutex.RUnlock()
+
+	if isSigned {
+		// Send signed event immediately
+		c.SSEvent("signed", gin.H{
+			"uuid": itemUUID,
+			"signed_at": time.Now(),
+			"success": true,
+		})
+		c.Writer.Flush()
+		return
+	}
+
+	// Send initial connection event
+	c.SSEvent("connected", gin.H{
+		"uuid": itemUUID,
+		"client_id": clientID,
+	})
+	c.Writer.Flush()
+
+	// Small delay to ensure client is ready
+	time.Sleep(200 * time.Millisecond)
+
+	// Keep connection alive with periodic heartbeats
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	// Listen for events
+	for {
+		select {
+		case event := <-clientChan:
+			// Send the event to the client
+			c.SSEvent(event.Type, event.Data)
+			c.Writer.Flush()
+
+			// If it's a signed event, close the connection
+			if event.Type == "signed" {
+				return
+			}
+		case <-ticker.C:
+			// Send heartbeat
+			c.SSEvent("heartbeat", gin.H{
+				"timestamp": time.Now().Unix(),
+			})
+			c.Writer.Flush()
+		case <-c.Request.Context().Done():
+			// Client disconnected
+			return
+		}
 	}
 }
 

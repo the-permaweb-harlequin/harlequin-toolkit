@@ -1,6 +1,6 @@
 # Makefile for Harlequin Remote Signing Service
 
-.PHONY: build clean test deps help run dev docker-build docker-run docker-stop docker-clean
+.PHONY: build clean test deps help run dev docker-build docker-run docker-stop docker-clean build-frontend clean-frontend
 
 # Default target
 help:
@@ -8,7 +8,10 @@ help:
 	@echo ""
 	@echo "Available commands:"
 	@echo "  build           Build the remote signing binary (current platform)"
+	@echo "  build-frontend  Build the React frontend for production"
+	@echo "  build-all-prod  Build both backend and frontend for production"
 	@echo "  clean           Clean build artifacts"
+	@echo "  clean-frontend  Clean frontend build artifacts"
 	@echo "  test            Run unit tests"
 	@echo "  test-integration Run integration tests with goar"
 	@echo "  test-all        Run all tests (unit + integration)"
@@ -17,6 +20,7 @@ help:
 	@echo "  docs            Generate API documentation"
 	@echo "  run             Run the server (development)"
 	@echo "  dev             Run in development mode with auto-reload"
+	@echo "  dev-frontend    Run frontend development server"
 	@echo ""
 	@echo "Cross-compilation:"
 	@echo "  build-linux     Build for Linux (amd64)"
@@ -42,8 +46,28 @@ build:
 	go build -o remote-signing ./cmd/remote-signing
 	@echo "✅ Build complete: ./remote-signing"
 
+# Build the React frontend
+build-frontend:
+	@echo "🎨 Building React frontend..."
+	@if [ ! -d "frontend/node_modules" ]; then \
+		echo "📦 Installing frontend dependencies..."; \
+		cd frontend && yarn; \
+	fi
+	cd frontend && yarn build
+	@echo "✅ Frontend build complete: ./frontend/dist"
+
+# Build both backend and frontend for production
+build-all-prod: build-frontend build
+	@echo "✅ Production build complete (backend + frontend)"
+
+# Clean frontend build artifacts
+clean-frontend:
+	@echo "🧹 Cleaning frontend build artifacts..."
+	rm -rf frontend/dist frontend/node_modules/.vite
+	@echo "✅ Frontend clean complete"
+
 # Clean build artifacts
-clean:
+clean: clean-frontend
 	@echo "🧹 Cleaning build artifacts..."
 	rm -f remote-signing remote-signing-* harlequin-remote-signing harlequin-remote-signing-* test-build test-swagger
 	rm -rf ../dist/remote-signing
@@ -104,6 +128,15 @@ dev:
 		echo "❌ Air not found. Install with: go install github.com/cosmtrek/air@latest"; \
 		echo "Or run 'make run' for normal mode"; \
 	fi
+
+# Run frontend development server
+dev-frontend:
+	@echo "🎨 Starting frontend development server..."
+	@if [ ! -d "frontend/node_modules" ]; then \
+		echo "📦 Installing frontend dependencies..."; \
+		cd frontend && yarn; \
+	fi
+	cd frontend && yarn dev
 
 # Install the binary to $GOPATH/bin
 install: build
