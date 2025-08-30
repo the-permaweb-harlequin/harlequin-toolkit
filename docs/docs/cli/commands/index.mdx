@@ -65,10 +65,42 @@ harlequin lua-utils bundle --entrypoint <file> [flags]
 - `--outputPath <file>` - Output path for bundled file
 - `--debug` - Enable debug logging
 
+### Version Management Commands
+
+Manage harlequin installations and versions:
+
+```bash
+harlequin install [--version <version>]  # Install or upgrade harlequin
+harlequin uninstall                       # Remove harlequin
+harlequin versions [--format <format>]    # List available versions
+```
+
+**Install Command:**
+- Interactive version selection when run without `--version`
+- Install specific versions with `--version v0.1.1`
+
+**Versions Command:**
+- `--format table` - Human-readable table (default)
+- `--format json` - JSON output for scripts
+- `--format list` - Simple list of version tags
+
+### Remote Signing Commands
+
+Start and manage the remote signing server:
+
+```bash
+harlequin remote-signing <command> [flags]
+```
+
+**Available Commands:**
+- `start` - Start the remote signing server
+- `stop` - Stop the remote signing server
+- `status` - Check server status
+
 ### Other Commands
 
 ```bash
-harlequin version    # Show version information
+harlequin version    # Show current version information
 harlequin help       # Show help message
 ```
 
@@ -96,4 +128,34 @@ harlequin lua-utils bundle --entrypoint main.lua
 
 # Bundle with custom output
 harlequin lua-utils bundle --entrypoint src/app.lua --outputPath dist/bundle.lua
+```
+
+**Version Management:**
+```bash
+# List available versions
+harlequin versions
+
+# Install specific version
+harlequin install --version v0.1.1
+
+# Interactive version selection
+harlequin install
+
+# Check current version
+harlequin version
+
+# Remove harlequin
+harlequin uninstall
+```
+
+**Remote Signing:**
+```bash
+# Start signing server
+harlequin remote-signing start
+
+# Start with custom port
+harlequin remote-signing start --port 9000
+
+# Check server status
+harlequin remote-signing status
 ```

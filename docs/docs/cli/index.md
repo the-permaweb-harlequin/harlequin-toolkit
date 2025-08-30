@@ -6,6 +6,8 @@ The Harlequin CLI is a powerful command-line tool for building AO processes and 
 
 - **Build System**: Compile flavored AOS processes with WebAssembly output
 - **Lua Utilities**: Bundle and process Lua files for distribution
+- **Version Management**: Install, upgrade, and manage CLI versions
+- **Remote Signing**: WebSocket-based signing server for web interfaces
 - **Interactive TUI**: Guided workflows with real-time feedback
 - **Configuration Management**: Flexible configuration options
 
@@ -31,16 +33,39 @@ harlequin build --entrypoint main.lua
 harlequin lua-utils bundle --entrypoint main.lua
 ```
 
+### Manage Versions
+
+```bash
+# List available versions
+harlequin versions
+
+# Install specific version
+harlequin install --version v0.1.1
+
+# Upgrade to latest
+harlequin install
+```
+
 ## Available Commands
 
-| Command     | Description                                   |
-| ----------- | --------------------------------------------- |
-| `build`     | Build AO applications with WebAssembly output |
-| `lua-utils` | Lua file utilities (bundle, etc.)             |
-| `version`   | Show version information                      |
-| `help`      | Show help information                         |
+| Command          | Description                                   |
+| ---------------- | --------------------------------------------- |
+| `build`          | Build AO applications with WebAssembly output |
+| `lua-utils`      | Lua file utilities (bundle, etc.)             |
+| `install`        | Install or upgrade harlequin                  |
+| `uninstall`      | Uninstall harlequin                           |
+| `versions`       | List available versions                       |
+| `remote-signing` | Start remote signing server                   |
+| `version`        | Show version information                      |
+| `help`           | Show help information                         |
 
 ## Command Categories
+
+### Version Management
+
+- **install** - Install or upgrade harlequin to specific versions
+- **uninstall** - Remove harlequin from your system
+- **versions** - List all available versions with multiple output formats
 
 ### Build Commands
 
@@ -51,6 +76,11 @@ harlequin lua-utils bundle --entrypoint main.lua
 
 - **bundle** - Combine multiple Lua files into a single executable
 - Automatic dependency resolution and circular dependency handling
+
+### Remote Signing
+
+- **remote-signing** - WebSocket-based signing server for web interfaces
+- Support for custom ports, hosts, and frontend URLs
 
 ### Interactive TUI
 

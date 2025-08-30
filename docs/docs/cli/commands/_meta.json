@@ -8,5 +8,20 @@
     "text": "Lua Utils",
     "link": "/cli/commands/lua-utils",
     "activeMatch": "/cli/commands/lua-utils"
+  },
+  {
+    "text": "Install",
+    "link": "/cli/commands/install",
+    "activeMatch": "/cli/commands/install"
+  },
+  {
+    "text": "Uninstall",
+    "link": "/cli/commands/uninstall",
+    "activeMatch": "/cli/commands/uninstall"
+  },
+  {
+    "text": "Versions",
+    "link": "/cli/commands/versions",
+    "activeMatch": "/cli/commands/versions"
   }
 ]
