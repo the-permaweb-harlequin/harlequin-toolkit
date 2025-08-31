@@ -1,5 +1,10 @@
 [
   {
+    "text": "Init",
+    "link": "/cli/commands/init",
+    "activeMatch": "/cli/commands/init"
+  },
+  {
     "text": "Build",
     "link": "/cli/commands/build",
     "activeMatch": "/cli/commands/build"

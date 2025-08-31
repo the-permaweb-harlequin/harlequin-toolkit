@@ -61,7 +61,14 @@ export default defineConfig({
             {
               text: 'Commands',
               link: '/cli/commands',
-              items: ['/cli/commands/build', '/cli/commands/lua-utils'],
+              items: [
+                '/cli/commands/init',
+                '/cli/commands/build',
+                '/cli/commands/lua-utils',
+                '/cli/commands/install',
+                '/cli/commands/uninstall',
+                '/cli/commands/versions',
+              ],
             },
           ],
         },

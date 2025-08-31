@@ -4,6 +4,7 @@ The Harlequin CLI is a powerful command-line tool for building AO processes and 
 
 ## Features
 
+- **Project Initialization**: Create new AO process projects from templates
 - **Build System**: Compile flavored AOS processes with WebAssembly output
 - **Lua Utilities**: Bundle and process Lua files for distribution
 - **Version Management**: Install, upgrade, and manage CLI versions
@@ -19,6 +20,12 @@ Launch the interactive TUI for guided workflows:
 
 ```bash
 harlequin
+```
+
+### Create a New Project
+
+```bash
+harlequin init
 ```
 
 ### Build an AO Process
@@ -50,6 +57,7 @@ harlequin install
 
 | Command          | Description                                   |
 | ---------------- | --------------------------------------------- |
+| `init`           | Create new AO process projects from templates |
 | `build`          | Build AO applications with WebAssembly output |
 | `lua-utils`      | Lua file utilities (bundle, etc.)             |
 | `install`        | Install or upgrade harlequin                  |
@@ -60,6 +68,11 @@ harlequin install
 | `help`           | Show help information                         |
 
 ## Command Categories
+
+### Project Management
+
+- **init** - Create new AO process projects from templates (Lua, C, Rust, AssemblyScript)
+- Interactive wizard with template selection and project configuration
 
 ### Version Management
 

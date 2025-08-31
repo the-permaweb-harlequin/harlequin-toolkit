@@ -26,6 +26,24 @@ This provides a guided experience with:
 
 For automation and scripting, use explicit commands:
 
+### Init Command
+
+Create new AO process projects from templates:
+
+```bash
+harlequin init <language> [flags]
+```
+
+**Required:**
+- `<language>` - Template language (lua, c, rust, assemblyscript)
+
+**Optional:**
+- `--name <name>` - Project name (required in non-interactive mode)
+- `--dir <directory>` - Target directory (default: project name)
+- `--author <author>` - Author name for project metadata
+- `--github <username>` - GitHub username for project metadata
+- `--interactive` - Force interactive mode
+
 ### Build Command
 
 Build AOS projects with WebAssembly output:
@@ -110,10 +128,17 @@ harlequin help       # Show help message
 ```bash
 # Launch interactive TUI
 harlequin
+
+# Create new project interactively
+harlequin init
 ```
 
 **Non-Interactive (Good for CI/CD):**
 ```bash
+# Create new projects
+harlequin init lua --name my-ao-process --author "Developer"
+harlequin init rust --name my-rust-project --github developer
+
 # Basic build
 harlequin build --entrypoint main.lua
 
