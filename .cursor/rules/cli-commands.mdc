@@ -1,0 +1,11 @@
+---
+description: CLI command modification
+globs: cli/*/**
+alwaysApply: false
+---
+
+
+Whenever creating or modifying a command to have interactive workflows, use Charm bubbletea for the interactions.
+
+Not all commands need interactive mode. But those that do should also have a non interactive mode to consume
+all the arguments in flags.

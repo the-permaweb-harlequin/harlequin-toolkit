@@ -1,0 +1,54 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "1.0.0",
+  "description": "AO Process built with C and Harlequin",
+  "main": "dist/{{PROJECT_NAME}}.wasm",
+  "scripts": {
+    "setup": "conan install . --output-folder=build --build=missing --profile:build=default --profile:host=default",
+    "build": "npm run setup && harlequin build --entrypoint main.c",
+    "build:cmake": "npm run setup && mkdir -p build && cd build && cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake && make",
+    "build:cmake:emscripten": "npm run setup && mkdir -p build && cd build && emcmake cmake .. -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake && emmake make",
+    "build:direct": "emcc main.c -o dist/{{PROJECT_NAME}}.wasm -O3 -s WASM=1 -s EXPORTED_FUNCTIONS='[\"_handle_message\",\"_init_process\",\"_main\"]' -s EXPORTED_RUNTIME_METHODS='[\"ccall\",\"cwrap\",\"UTF8ToString\",\"stringToUTF8\"]' -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=16777216 -s MAXIMUM_MEMORY=67108864 -s STACK_SIZE=8388608 -s MODULARIZE=1 -s EXPORT_NAME='AOProcess' -s ENVIRONMENT='web,worker' -s NO_EXIT_RUNTIME=1",
+    "test": "npm run build:cmake && cd build && make run_tests",
+    "test:gtest": "npm run build:cmake && cd build && make gtest",
+    "test:native": "gcc main.c -o test_native -DTEST_MODE && ./test_native",
+    "clean": "rm -rf build dist test_native",
+    "dev": "harlequin build --entrypoint main.c --watch",
+    "docker:build": "docker run --rm -v $(pwd):/src -w /src emscripten/emsdk:latest emcc main.c -o dist/{{PROJECT_NAME}}.wasm -O3 -s WASM=1 -s EXPORTED_FUNCTIONS='[\"_handle_message\",\"_init_process\",\"_main\"]' -s EXPORTED_RUNTIME_METHODS='[\"ccall\",\"cwrap\",\"UTF8ToString\",\"stringToUTF8\"]' -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=16777216 -s MAXIMUM_MEMORY=67108864 -s STACK_SIZE=8388608 -s MODULARIZE=1 -s EXPORT_NAME='AOProcess' -s ENVIRONMENT='web,worker' -s NO_EXIT_RUNTIME=1"
+  },
+  "keywords": [
+    "ao",
+    "arweave",
+    "process",
+    "c",
+    "webassembly",
+    "wasm",
+    "harlequin"
+  ],
+  "author": "{{AUTHOR_NAME}}",
+  "license": "MIT",
+  "devDependencies": {
+    "emscripten": "^3.1.0"
+  },
+  "conan": {
+    "requires": [
+      "nlohmann_json/3.11.3",
+      "gtest/1.14.0",
+      "spdlog/1.12.0",
+      "fmt/10.1.1"
+    ]
+  },
+  "harlequin": {
+    "type": "ao-process",
+    "language": "c",
+    "version": "1.0.0",
+    "build_system": "cmake"
+  },
+  "files": [
+    "main.c",
+    "CMakeLists.txt",
+    ".harlequin.yaml",
+    "README.md",
+    "dist/"
+  ]
+}

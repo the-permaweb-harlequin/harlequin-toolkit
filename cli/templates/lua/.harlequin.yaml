@@ -1,0 +1,121 @@
+# Harlequin Configuration for Lua AO Process with C Trampoline
+# This configuration file defines build settings for your AO process
+
+# Build target configuration
+target: 'ao'
+
+# Memory configuration (in bytes) - increased for Lua interpreter
+initial_memory: 33554432 # 32MB
+maximum_memory: 134217728 # 128MB
+stack_size: 16777216 # 16MB
+
+# Build settings
+build:
+  # Entry point for the process
+  entrypoint: 'main.lua'
+
+  # C trampoline source
+  trampoline: 'src/trampoline.c'
+
+  # Build system
+  system: 'cmake'
+
+  # Output directory for build artifacts
+  output_dir: './dist'
+
+  # Include additional files
+  includes:
+    - 'utils/*.lua'
+    - 'handlers/*.lua'
+    - 'src/*.c'
+
+  # Compiler settings for C trampoline
+  compiler:
+    # Use Emscripten for WebAssembly compilation
+    toolchain: 'emscripten'
+
+    # Optimization level
+    optimization: 'O3'
+
+    # Additional compiler flags
+    flags:
+      - '-Wall'
+      - '-Wextra'
+      - '-std=c11'
+
+    # Emscripten-specific settings
+    emscripten:
+      # Exported functions
+      exported_functions:
+        - '_init_lua_process'
+        - '_handle_message'
+        - '_ao_handle'
+        - '_eval_lua'
+        - '_get_lua_state'
+        - '_cleanup_lua_process'
+        - '_main'
+
+      # Runtime methods
+      exported_runtime_methods:
+        - 'ccall'
+        - 'cwrap'
+        - 'UTF8ToString'
+        - 'stringToUTF8'
+        - 'allocate'
+        - 'ALLOC_NORMAL'
+
+      # Module settings
+      modularize: true
+      export_name: 'AOLuaProcess'
+      environment: ['web', 'worker']
+
+      # Memory settings
+      allow_memory_growth: true
+      no_exit_runtime: true
+
+      # Embed Lua files
+      embed_files:
+        - 'main.lua'
+        - 'handlers/'
+        - 'utils/'
+
+      # Use embedded Lua
+      use_lua: true
+
+  # Optimization settings
+  optimize: true
+
+  # Debug information
+  debug: false
+
+# AO specific settings
+ao:
+  # Process configuration
+  process:
+    # Tags to apply to the process
+    tags:
+      - name: 'App-Name'
+        value: '{{PROJECT_NAME}}'
+      - name: 'App-Version'
+        value: '1.0.0'
+
+  # Module settings
+  module:
+    # Use latest AO module
+    version: 'latest'
+
+# Development settings
+dev:
+  # Watch for file changes during development
+  watch: true
+
+  # Auto-reload on changes
+  hot_reload: true
+
+  # Test configuration
+  test:
+    # Test files pattern
+    pattern: 'test/*.lua'
+
+    # Test framework
+    framework: 'busted'

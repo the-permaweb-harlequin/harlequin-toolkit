@@ -37,12 +37,20 @@ func main() {
 	command := os.Args[1]
 
 	switch command {
+	case "init":
+		cmd.HandleInitCommand(ctx, os.Args[2:])
 	case "build":
 		cmd.HandleBuildCommand(ctx, os.Args[2:])
 	case "lua-utils":
 		cmd.HandleLuaUtilsCommand(ctx, os.Args[2:])
 	case "remote-signing":
 		cmd.HandleRemoteSigningCommand(ctx, os.Args[2:])
+	case "install":
+		cmd.HandleInstallCommand(ctx, os.Args[2:])
+	case "uninstall":
+		cmd.HandleUninstallCommand(ctx, os.Args[2:])
+	case "versions":
+		cmd.HandleVersionsCommand(ctx, os.Args[2:])
 	case "version", "--version", "-v":
 		printVersion()
 	case "help", "--help", "-h":
@@ -63,33 +71,27 @@ func printVersion() {
 
 func printUsage() {
 	fmt.Println("🎭 Harlequin - Arweave Development Toolkit")
-	fmt.Printf("Version: %s\n", version)
 	fmt.Println()
-	fmt.Println("Usage:")
-	fmt.Println("  harlequin                   Launch interactive TUI (default)")
-	fmt.Println("  harlequin <command> [args]  Run specific command")
+	fmt.Println("USAGE:")
+	fmt.Println("    harlequin [COMMAND] [OPTIONS]")
 	fmt.Println()
-	fmt.Println("Commands:")
-	fmt.Println("  build --entrypoint <file> [flags]  Build project non-interactively")
-	fmt.Println("  lua-utils <subcommand> [flags]     Lua utilities (bundle, etc.)")
-	fmt.Println("  remote-signing <subcommand> [flags] Remote signing server")
-	fmt.Println("  version                             Show version information")
-	fmt.Println("  help                                Show this help message")
+	fmt.Println("COMMANDS:")
+	fmt.Println("    init            Create a new AO process project from template")
+	fmt.Println("    build           Build AO process (launches TUI if no args)")
+	fmt.Println("    lua-utils       Lua utilities for bundling and processing")
+	fmt.Println("    remote-signing  Remote signing server operations")
+	fmt.Println("    install         Install or upgrade harlequin")
+	fmt.Println("    uninstall       Remove harlequin from system")
+	fmt.Println("    versions        List available harlequin versions")
+	fmt.Println("    version         Show version information")
+	fmt.Println("    help            Show this help message")
 	fmt.Println()
-	fmt.Println("Examples:")
-	fmt.Println("  harlequin                                    # Launch interactive TUI")
-	fmt.Println("  harlequin build --entrypoint main.lua       # Non-interactive build")
-	fmt.Println("  harlequin build --entrypoint main.lua --debug  # Build with debug")
-	fmt.Println("  harlequin lua-utils bundle --entrypoint main.lua  # Bundle Lua files")
-	fmt.Println("  harlequin remote-signing start --port 8080  # Start remote signing server")
-	fmt.Println("  harlequin version                            # Show version information")
+	fmt.Println("EXAMPLES:")
+	fmt.Println("    harlequin                    # Launch interactive TUI")
+	fmt.Println("    harlequin init               # Create new project (interactive)")
+	fmt.Println("    harlequin init lua --name my-project")
+	fmt.Println("    harlequin build --entrypoint main.lua")
+	fmt.Println("    harlequin versions --format table")
 	fmt.Println()
-	fmt.Println("Interactive TUI (Default Mode):")
-	fmt.Println("  The TUI provides a guided experience for:")
-	fmt.Println("  • Selecting build type (AOS Flavour)")
-	fmt.Println("  • Choosing entrypoint files")
-	fmt.Println("  • Configuring output directories")
-	fmt.Println("  • Editing .harlequin.yaml configuration")
-	fmt.Println()
-	fmt.Println("For detailed build options, use: harlequin build --help")
+	fmt.Println("For command-specific help, use: harlequin [COMMAND] --help")
 }

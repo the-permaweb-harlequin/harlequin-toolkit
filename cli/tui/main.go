@@ -487,6 +487,8 @@ func (m *Model) viewCommandSelection() string {
 	description := "Welcome to Harlequin! Choose a command to get started."
 	if selected != nil {
 		switch selected.Value() {
+		case "init":
+			description = "Create a new AO process project from template.\n\nThis will guide you through:\n• Project name selection\n• Template language choice (Lua, C, Rust, AssemblyScript)\n• Author and GitHub information\n• Project directory setup\n\nAvailable templates:\n• Lua - With C trampoline and LuaRocks\n• C - With Conan and CMake\n• Rust - With Cargo and wasm-pack\n• AssemblyScript - With custom JSON handling\n\nEach template includes comprehensive documentation, testing, and build systems."
 		case "build":
 			description = "Interactive project building with guided configuration.\n\nThis will take you through:\n• Build type selection\n• Entrypoint file selection\n• Output directory configuration\n• Build configuration review\n• Actual build process\n\nThe TUI will guide you step-by-step through the entire build process with helpful descriptions and validation."
 		case "lua-utils":
@@ -812,6 +814,10 @@ func (m *Model) updateCommandSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if key.Matches(msg, m.keyMap.Enter) {
 		if selected := m.commandSelector.GetSelected(); selected != nil {
 			switch selected.Value() {
+			case "init":
+				// Launch init command in non-interactive mode for now
+				// TODO: Implement full TUI for init
+				return m, tea.Quit
 			case "build":
 				// Go to build type selection
 				m.state = ViewBuildTypeSelection

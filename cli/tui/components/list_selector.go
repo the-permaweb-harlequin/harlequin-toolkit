@@ -224,6 +224,11 @@ func CreateConfigActionSelector(width, height int) *ListSelectorComponent {
 func CreateCommandSelector(width, height int) *ListSelectorComponent {
 	items := []ListItem{
 		{
+			title:       "Initialize Project",
+			description: "Create a new AO process project from template",
+			value:       "init",
+		},
+		{
 			title:       "Build Project",
 			description: "Build an AOS project with interactive configuration",
 			value:       "build",

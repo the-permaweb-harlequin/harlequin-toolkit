@@ -1,0 +1,140 @@
+# Harlequin Configuration for Rust AO Process
+# This configuration file defines build settings for your Rust-based AO process
+
+# Build target configuration
+target: 'ao'
+
+# Memory configuration (in bytes)
+initial_memory: 16777216 # 16MB
+maximum_memory: 67108864 # 64MB
+stack_size: 8388608 # 8MB
+
+# Build settings
+build:
+  # Entry point for the process
+  entrypoint: 'src/lib.rs'
+
+  # Build system
+  system: 'cargo'
+
+  # Output directory for build artifacts
+  output_dir: './dist'
+
+  # Rust-specific settings
+  rust:
+    # Target for WebAssembly
+    target: 'wasm32-unknown-unknown'
+
+    # Build profile
+    profile: 'release'
+
+    # Cargo features
+    features: []
+
+    # Additional cargo flags
+    cargo_flags:
+      - '--lib'
+
+    # wasm-pack settings
+    wasm_pack:
+      # Target environment
+      target: 'web'
+
+      # Output directory
+      out_dir: 'dist'
+
+      # Additional wasm-pack flags
+      flags:
+        - '--no-typescript'
+        - '--no-pack'
+
+      # Optimization settings
+      optimize: true
+
+      # Debug information
+      debug: false
+
+  # Include additional Rust files
+  includes:
+    - 'src/**/*.rs'
+    - 'tests/**/*.rs'
+
+  # Optimization settings
+  optimize: true
+
+  # Debug information
+  debug: false
+
+# AO specific settings
+ao:
+  # Process configuration
+  process:
+    # Tags to apply to the process
+    tags:
+      - name: 'App-Name'
+        value: '{{PROJECT_NAME}}'
+      - name: 'App-Version'
+        value: '1.0.0'
+      - name: 'Language'
+        value: 'Rust'
+
+  # Module settings
+  module:
+    # Use latest AO module
+    version: 'latest'
+
+# Development settings
+dev:
+  # Watch for file changes during development
+  watch: true
+
+  # Auto-reload on changes
+  hot_reload: true
+
+  # Test configuration
+  test:
+    # Test files pattern
+    pattern: 'tests/**/*.rs'
+
+    # Test framework
+    framework: 'cargo'
+
+    # Test command
+    command: 'cargo test'
+
+# WebAssembly settings
+wasm:
+  # Optimization settings
+  optimize: true
+
+  # Size optimization
+  optimize_size: true
+
+  # Strip debug information
+  strip: true
+
+  # Additional wasm-opt flags
+  wasm_opt_flags:
+    - '-Os'
+    - '--enable-mutable-globals'
+    - '--enable-bulk-memory'
+
+# Docker settings for containerized builds
+docker:
+  # Use Rust Docker image with wasm-pack
+  image: 'rust:1.75'
+
+  # Working directory in container
+  workdir: '/usr/src/app'
+
+  # Volume mounts
+  volumes:
+    - '.:/usr/src/app'
+
+  # Setup commands
+  setup:
+    - 'curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh'
+    - 'rustup target add wasm32-unknown-unknown'
+
+  # Build command in container
+  command: 'wasm-pack build --target web --out-dir dist'

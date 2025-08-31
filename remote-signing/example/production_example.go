@@ -24,7 +24,7 @@ func main() {
 	// - Frontend: https://signing.harlequin.com (static site on CDN)
 	// - Backend: https://api.harlequin.com (Go server)
 	config.FrontendURL = "https://signing.harlequin.com"
-	
+
 	// Note: In real deployment, you'd also set:
 	// config.Host = "api.harlequin.com" // or your server's public hostname
 
@@ -71,7 +71,7 @@ func main() {
 	fmt.Printf("🔗 Signing URL: %s\n", result.SigningURL)
 	fmt.Printf("📅 Signed at: %s\n", result.SignedAt.Format("2006-01-02 15:04:05"))
 	fmt.Printf("📤 Bundler response: %s\n", result.BundlerResponse)
-	
+
 	fmt.Println("\n💡 Deployment Flow:")
 	fmt.Println("1. User visits the signing URL (frontend)")
 	fmt.Println("2. Frontend reads the 'server' parameter")

@@ -42,5 +42,8 @@
     "stylelint-less": "^1.0.6",
     "stylelint-prettier": "3",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@permaweb/ao-loader": "^0.0.49"
   }
 }

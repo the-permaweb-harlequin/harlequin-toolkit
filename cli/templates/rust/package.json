@@ -1,0 +1,60 @@
+{
+  "name": "{{PROJECT_NAME}}",
+  "version": "1.0.0",
+  "description": "AO Process built with Rust and Harlequin",
+  "main": "dist/{{PROJECT_NAME}}.js",
+  "scripts": {
+    "setup": "rustup target add wasm32-unknown-unknown && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh",
+    "build": "cargo build --release",
+    "build:wasm": "wasm-pack build --target web --out-dir dist",
+    "build:wasm:nodejs": "wasm-pack build --target nodejs --out-dir dist",
+    "build:wasm:bundler": "wasm-pack build --target bundler --out-dir dist",
+    "build:harlequin": "harlequin build --entrypoint src/lib.rs",
+    "test": "cargo test",
+    "test:wasm": "wasm-pack test --headless --firefox",
+    "run": "cargo run",
+    "dev": "harlequin build --entrypoint src/lib.rs --watch",
+    "lint": "cargo clippy -- -D warnings",
+    "fmt": "cargo fmt",
+    "check": "cargo check",
+    "clean": "cargo clean && rm -rf dist/ pkg/",
+    "docker:build": "docker run --rm -v $(pwd):/usr/src/app -w /usr/src/app rust:1.75 sh -c 'curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && rustup target add wasm32-unknown-unknown && wasm-pack build --target web --out-dir dist'",
+    "size": "wasm-pack build --target web --out-dir dist && ls -lh dist/*.wasm"
+  },
+  "keywords": [
+    "ao",
+    "arweave",
+    "process",
+    "rust",
+    "webassembly",
+    "wasm",
+    "harlequin"
+  ],
+  "author": "{{AUTHOR_NAME}}",
+  "license": "MIT",
+  "devDependencies": {
+    "wasm-pack": "^0.12.0"
+  },
+  "harlequin": {
+    "type": "ao-process",
+    "language": "rust",
+    "version": "1.0.0",
+    "build_system": "cargo"
+  },
+  "files": [
+    "src/",
+    "Cargo.toml",
+    "Cargo.lock",
+    ".harlequin.yaml",
+    "README.md",
+    "dist/"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/{{GITHUB_USER}}/{{PROJECT_NAME}}.git"
+  },
+  "bugs": {
+    "url": "https://github.com/{{GITHUB_USER}}/{{PROJECT_NAME}}/issues"
+  },
+  "homepage": "https://github.com/{{GITHUB_USER}}/{{PROJECT_NAME}}#readme"
+}
