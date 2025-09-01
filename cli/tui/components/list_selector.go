@@ -1,6 +1,8 @@
 package components
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -234,6 +236,11 @@ func CreateCommandSelector(width, height int) *ListSelectorComponent {
 			value:       "build",
 		},
 		{
+			title:       "Upload Module",
+			description: "Upload built WASM modules to Arweave",
+			value:       "upload-module",
+		},
+		{
 			title:       "Lua Utils",
 			description: "Lua bundling and utilities",
 			value:       "lua-utils",
@@ -254,4 +261,186 @@ func CreateLuaUtilsSelector(width, height int) *ListSelectorComponent {
 	}
 
 	return NewListSelector("Lua Utils Commands", items, width, height)
+}
+
+// CreateWasmSelectorWithDiscovery creates a selector with automatic WASM file discovery
+func CreateWasmSelectorWithDiscovery(rootDir string, width, height int) (*ListSelectorComponent, error) {
+	// Discover WASM files automatically
+	wasmFiles, err := FindWasmFilesQuick(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no files found, provide helpful message
+	if len(wasmFiles) == 0 {
+		items := []ListItem{
+			{
+				title:       "No WASM files found",
+				description: "No .wasm files found in current directory. Use manual file picker instead.",
+				value:       "",
+			},
+		}
+		return NewListSelector("Select WASM File", items, width, height), nil
+	}
+
+	return CreateWasmSelector(wasmFiles, width, height), nil
+}
+
+// CreateWasmSelector creates a selector for WASM files
+func CreateWasmSelector(wasmFiles []string, width, height int) *ListSelectorComponent {
+	items := make([]ListItem, len(wasmFiles))
+	for i, file := range wasmFiles {
+		items[i] = ListItem{
+			title:       file,
+			description: "WASM binary file for upload",
+			value:       file,
+		}
+	}
+
+	return NewListSelector("Select WASM File", items, width, height)
+}
+
+// CreateConfigSelectorWithDiscovery creates a selector with automatic config file discovery
+func CreateConfigSelectorWithDiscovery(rootDir string, width, height int) (*ListSelectorComponent, error) {
+	// Discover config files automatically
+	configFiles, err := FindConfigFilesQuick(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no files found, provide helpful message
+	if len(configFiles) == 0 {
+		items := []ListItem{
+			{
+				title:       "No config files found",
+				description: "No config files found. Use manual file picker instead.",
+				value:       "",
+			},
+		}
+		return NewListSelector("Select Config File", items, width, height), nil
+	}
+
+	return CreateConfigSelector(configFiles, width, height), nil
+}
+
+// CreateConfigSelector creates a selector for config files
+func CreateConfigSelector(configFiles []string, width, height int) *ListSelectorComponent {
+	items := make([]ListItem, len(configFiles))
+	for i, file := range configFiles {
+		items[i] = ListItem{
+			title:       file,
+			description: "Build configuration file",
+			value:       file,
+		}
+	}
+
+	return NewListSelector("Select Config File", items, width, height)
+}
+
+// CreateWalletSelectorWithDiscovery creates a selector with automatic wallet file discovery
+func CreateWalletSelectorWithDiscovery(rootDir string, width, height int) (*ListSelectorComponent, error) {
+	// Discover wallet files automatically
+	walletFiles, err := FindWalletFilesQuick(rootDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// If no files found, provide helpful message
+	if len(walletFiles) == 0 {
+		items := []ListItem{
+			{
+				title:       "No wallet files found",
+				description: "No wallet files found. Use manual file picker instead.",
+				value:       "",
+			},
+		}
+		return NewListSelector("Select Wallet File", items, width, height), nil
+	}
+
+	return CreateWalletSelector(walletFiles, width, height), nil
+}
+
+// CreateWalletSelector creates a selector for wallet files
+func CreateWalletSelector(walletFiles []string, width, height int) *ListSelectorComponent {
+	items := make([]ListItem, len(walletFiles))
+	for i, file := range walletFiles {
+		items[i] = ListItem{
+			title:       file,
+			description: "Arweave wallet JSON file",
+			value:       file,
+		}
+	}
+
+	return NewListSelector("Select Wallet File", items, width, height)
+}
+
+// CreateUploadDryRunSelector creates a selector for upload mode (dry run vs actual)
+func CreateUploadDryRunSelector(width, height int) *ListSelectorComponent {
+	items := []ListItem{
+		{
+			title:       "Dry Run",
+			description: "Show what would be uploaded without actually uploading",
+			value:       "true",
+		},
+		{
+			title:       "Actual Upload",
+			description: "Upload the module to Arweave (requires wallet with funds)",
+			value:       "false",
+		},
+	}
+
+	return NewListSelector("Select Upload Mode", items, width, height)
+}
+
+// CreateUploadConfirmationSelector creates a selector for upload confirmation
+func CreateUploadConfirmationSelector(width, height int) *ListSelectorComponent {
+	items := []ListItem{
+		{
+			title:       "✅ Confirm Upload",
+			description: "Proceed with the upload using the settings above",
+			value:       "confirm",
+		},
+		{
+			title:       "❌ Cancel",
+			description: "Go back to modify settings",
+			value:       "cancel",
+		},
+	}
+
+	return NewListSelector("Confirm Upload", items, width, height)
+}
+
+// CreateUploadConfirmationSelectorWithBalance creates a selector for upload confirmation with balance checking
+func CreateUploadConfirmationSelectorWithBalance(width, height int, hasSufficientBalance bool, balance, cost string) *ListSelectorComponent {
+	var items []ListItem
+
+	if hasSufficientBalance {
+		items = []ListItem{
+			{
+				title:       "✅ Confirm Upload",
+				description: "Proceed with the upload using the settings above",
+				value:       "confirm",
+			},
+			{
+				title:       "❌ Cancel",
+				description: "Go back to modify settings",
+				value:       "cancel",
+			},
+		}
+	} else {
+		items = []ListItem{
+			{
+				title:       "⚠️  Insufficient Balance",
+				description: fmt.Sprintf("Need %s, have %s Credits", cost, balance),
+				value:       "insufficient",
+			},
+			{
+				title:       "❌ Cancel",
+				description: "Go back to modify settings",
+				value:       "cancel",
+			},
+		}
+	}
+
+	return NewListSelector("Confirm Upload", items, width, height)
 }

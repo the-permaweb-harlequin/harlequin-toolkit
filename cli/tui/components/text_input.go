@@ -93,3 +93,13 @@ func (ti *TextInputComponent) View() string {
 func CreateOutputDirInput(width, height int) *TextInputComponent {
 	return NewTextInput("Output Directory", "./dist", width, height)
 }
+
+// CreateVersionInput creates a text input for module version
+func CreateVersionInput(width, height int) *TextInputComponent {
+	return NewTextInput("Module Version", "v1.0.0", width, height)
+}
+
+// CreateGitHashInput creates a text input for git hash (optional)
+func CreateGitHashInput(width, height int) *TextInputComponent {
+	return NewTextInput("Git Hash (Optional)", "", width, height)
+}

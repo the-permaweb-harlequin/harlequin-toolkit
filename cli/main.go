@@ -41,6 +41,8 @@ func main() {
 		cmd.HandleInitCommand(ctx, os.Args[2:])
 	case "build":
 		cmd.HandleBuildCommand(ctx, os.Args[2:])
+	case "upload-module":
+		cmd.HandleUploadCommand(ctx, os.Args[2:])
 	case "lua-utils":
 		cmd.HandleLuaUtilsCommand(ctx, os.Args[2:])
 	case "remote-signing":
@@ -78,6 +80,7 @@ func printUsage() {
 	fmt.Println("COMMANDS:")
 	fmt.Println("    init            Create a new AO process project from template")
 	fmt.Println("    build           Build AO process (launches TUI if no args)")
+	fmt.Println("    upload-module   Upload built modules to Arweave")
 	fmt.Println("    lua-utils       Lua utilities for bundling and processing")
 	fmt.Println("    remote-signing  Remote signing server operations")
 	fmt.Println("    install         Install or upgrade harlequin")
@@ -91,6 +94,7 @@ func printUsage() {
 	fmt.Println("    harlequin init               # Create new project (interactive)")
 	fmt.Println("    harlequin init lua --name my-project")
 	fmt.Println("    harlequin build --entrypoint main.lua")
+	fmt.Println("    harlequin upload-module      # Upload built module to Arweave")
 	fmt.Println("    harlequin versions --format table")
 	fmt.Println()
 	fmt.Println("For command-specific help, use: harlequin [COMMAND] --help")

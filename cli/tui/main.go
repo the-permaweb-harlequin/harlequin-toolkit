@@ -2,9 +2,13 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +16,10 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/everFinance/goar/utils"
+	"github.com/project-kardeshev/go-ardrive-turbo/pkg/signers"
+	"github.com/project-kardeshev/go-ardrive-turbo/pkg/turbo"
+	"github.com/project-kardeshev/go-ardrive-turbo/pkg/types"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/build/builders"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/config"
 	"github.com/the-permaweb-harlequin/harlequin-toolkit/cli/debug"
@@ -38,6 +46,16 @@ const (
 	ViewLuaUtilsRunning
 	ViewLuaUtilsSuccess
 	ViewLuaUtilsError
+	ViewUploadWasmSelection
+	ViewUploadConfigSelection
+	ViewUploadWalletSelection
+	ViewUploadVersion
+	ViewUploadGitHash
+	ViewUploadDryRun
+	ViewUploadConfirmation
+	ViewUploadRunning
+	ViewUploadSuccess
+	ViewUploadError
 )
 
 // Model represents the modernized TUI application state
@@ -46,6 +64,7 @@ type Model struct {
 	state ViewState
 	flow  *BuildFlow
 	luaUtilsFlow *LuaUtilsFlow
+	uploadFlow *UploadFlow
 	ctx   context.Context
 
 	// Bubbles components
@@ -67,6 +86,18 @@ type Model struct {
 	luaUtilsFileSelector *components.ListSelectorComponent
 	luaUtilsOutputInput *components.TextInputComponent
 
+	// Upload Module components
+	uploadWasmSelector    *components.ListSelectorComponent
+	uploadWasmFilePicker  *components.FilePickerComponent
+	uploadConfigSelector  *components.ListSelectorComponent
+	uploadConfigFilePicker *components.FilePickerComponent
+	uploadWalletSelector  *components.ListSelectorComponent
+	uploadWalletFilePicker *components.FilePickerComponent
+	uploadVersionInput    *components.TextInputComponent
+	uploadGitHashInput    *components.TextInputComponent
+	uploadDryRunSelector  *components.ListSelectorComponent
+	uploadConfirmSelector *components.ListSelectorComponent
+
 	// Layout
 	width  int
 	height int
@@ -74,10 +105,14 @@ type Model struct {
 	// File selection mode
 	useFilePicker bool // true = manual picker, false = automatic list
 	useLuaUtilsFilePicker bool // for lua-utils file selection
+	useUploadWasmFilePicker bool // for upload wasm file selection
+	useUploadConfigFilePicker bool // for upload config file selection
+	useUploadWalletFilePicker bool // for upload wallet file selection
 
 	// Build process
 	buildResult *BuildResult
 	luaUtilsResult *LuaUtilsResult
+	uploadResult *UploadResult
 	program     *tea.Program
 }
 
@@ -113,6 +148,26 @@ type LuaUtilsResult struct {
 	Flow    *LuaUtilsFlow
 }
 
+// UploadFlow represents the upload-module configuration flow
+type UploadFlow struct {
+	WasmFile   string
+	ConfigFile string
+	WalletFile string
+	Version    string
+	GitHash    string
+	DryRun     bool
+	Balance    string
+	EstimatedCost string
+	BalanceCheckError string  // Store balance check error for display
+}
+
+// UploadResult holds the result of an upload operation
+type UploadResult struct {
+	Success bool
+	Error   error
+	Flow    *UploadFlow
+}
+
 // Messages for Bubble Tea
 type BuildStepStartMsg struct{ StepName string }
 type BuildStepCompleteMsg struct {
@@ -121,6 +176,7 @@ type BuildStepCompleteMsg struct {
 }
 type BuildCompleteMsg struct{ Result *BuildResult }
 type LuaUtilsCompleteMsg struct{ Result *LuaUtilsResult }
+type UploadCompleteMsg struct{ Result *UploadResult }
 type TickMsg struct{}
 
 // NewModel creates a new modernized TUI model
@@ -142,6 +198,7 @@ func NewModel(ctx context.Context) *Model {
 		state:           ViewCommandSelection,
 		flow:            &BuildFlow{},
 		luaUtilsFlow:    &LuaUtilsFlow{},
+		uploadFlow:      &UploadFlow{},
 		ctx:             ctx,
 		keyMap:          keyMap,
 		help:            helpModel,
@@ -210,6 +267,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLuaUtilsRunning(msg)
 		case ViewLuaUtilsSuccess, ViewLuaUtilsError:
 			return m.updateLuaUtilsResult(msg)
+		case ViewUploadWasmSelection:
+			return m.updateUploadWasmSelection(msg)
+		case ViewUploadConfigSelection:
+			return m.updateUploadConfigSelection(msg)
+		case ViewUploadWalletSelection:
+			return m.updateUploadWalletSelection(msg)
+		case ViewUploadVersion:
+			return m.updateUploadVersion(msg)
+		case ViewUploadGitHash:
+			return m.updateUploadGitHash(msg)
+		case ViewUploadDryRun:
+			return m.updateUploadDryRun(msg)
+		case ViewUploadConfirmation:
+			return m.updateUploadConfirmation(msg)
+		case ViewUploadRunning:
+			return m.updateUploadRunning(msg)
+		case ViewUploadSuccess, ViewUploadError:
+			return m.updateUploadResult(msg)
 		}
 
 	case BuildStepStartMsg:
@@ -260,6 +335,24 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Create result component for lua-utils
+		m.result = components.NewResultComponent(
+			msg.Result.Success,
+			msg.Result,
+			0, // Width not used by content methods
+			0, // Height not used by content methods
+		)
+
+		return m, nil
+
+	case UploadCompleteMsg:
+		m.uploadResult = msg.Result
+		if msg.Result.Success {
+			m.state = ViewUploadSuccess
+		} else {
+			m.state = ViewUploadError
+		}
+
+		// Create result component for upload
 		m.result = components.NewResultComponent(
 			msg.Result.Success,
 			msg.Result,
@@ -322,6 +415,24 @@ func (m *Model) View() string {
 		content = m.viewLuaUtilsRunning()
 	case ViewLuaUtilsSuccess, ViewLuaUtilsError:
 		content = m.viewLuaUtilsResult()
+	case ViewUploadWasmSelection:
+		content = m.viewUploadWasmSelection()
+	case ViewUploadConfigSelection:
+		content = m.viewUploadConfigSelection()
+	case ViewUploadWalletSelection:
+		content = m.viewUploadWalletSelection()
+	case ViewUploadVersion:
+		content = m.viewUploadVersion()
+	case ViewUploadGitHash:
+		content = m.viewUploadGitHash()
+	case ViewUploadDryRun:
+		content = m.viewUploadDryRun()
+	case ViewUploadConfirmation:
+		content = m.viewUploadConfirmation()
+	case ViewUploadRunning:
+		content = m.viewUploadRunning()
+	case ViewUploadSuccess, ViewUploadError:
+		content = m.viewUploadResult()
 	}
 
 	// Create controls/help with proper width
@@ -470,6 +581,26 @@ func (m *Model) getViewTitle() string {
 		return "Bundle Successful!"
 	case ViewLuaUtilsError:
 		return "Bundle Failed"
+	case ViewUploadWasmSelection:
+		return "Select WASM File"
+	case ViewUploadConfigSelection:
+		return "Select Config File"
+	case ViewUploadWalletSelection:
+		return "Select Wallet File"
+	case ViewUploadVersion:
+		return "Enter Version"
+	case ViewUploadGitHash:
+		return "Enter Git Hash"
+	case ViewUploadDryRun:
+		return "Select Upload Mode"
+	case ViewUploadConfirmation:
+		return "Confirm Upload"
+	case ViewUploadRunning:
+		return "Uploading Module"
+	case ViewUploadSuccess:
+		return "Upload Successful!"
+	case ViewUploadError:
+		return "Upload Failed"
 	}
 	return "Harlequin"
 }
@@ -491,6 +622,8 @@ func (m *Model) viewCommandSelection() string {
 			description = "Create a new AO process project from template.\n\nThis will guide you through:\n• Project name selection\n• Template language choice (Lua, C, Rust, AssemblyScript)\n• Author and GitHub information\n• Project directory setup\n\nAvailable templates:\n• Lua - With C trampoline and LuaRocks\n• C - With Conan and CMake\n• Rust - With Cargo and wasm-pack\n• AssemblyScript - With custom JSON handling\n\nEach template includes comprehensive documentation, testing, and build systems."
 		case "build":
 			description = "Interactive project building with guided configuration.\n\nThis will take you through:\n• Build type selection\n• Entrypoint file selection\n• Output directory configuration\n• Build configuration review\n• Actual build process\n\nThe TUI will guide you step-by-step through the entire build process with helpful descriptions and validation."
+		case "upload-module":
+			description = "Upload built WASM modules to Arweave with comprehensive metadata.\n\nThis will guide you through:\n• WASM file selection\n• Configuration file selection\n• Wallet file selection\n• Version and git hash configuration\n• Upload mode selection (dry run vs actual)\n\nFeatures:\n• Automatic WASM metadata extraction\n• JSON export analysis\n• Comprehensive tagging\n• Progress tracking\n• Dry run validation"
 		case "lua-utils":
 			description = "Lua utilities for bundling and processing Lua files.\n\nCurrently available:\n• Bundle - Combine multiple Lua files into a single executable\n\nThe bundle command will:\n• Analyze require() statements in your main Lua file\n• Recursively resolve all dependencies\n• Create a single bundled file with all modules\n• Handle circular dependencies gracefully"
 		default:
@@ -769,6 +902,36 @@ func (m *Model) createControls() string {
 		controls = []string{"Please wait...", "q Quit"}
 	case ViewLuaUtilsSuccess, ViewLuaUtilsError:
 		controls = []string{"Enter Exit", "q Quit"}
+	case ViewUploadWasmSelection:
+		if m.useUploadWasmFilePicker {
+			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "Enter Select", "f File Picker", "Esc Back", "q Quit"}
+		}
+	case ViewUploadConfigSelection:
+		if m.useUploadConfigFilePicker {
+			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "Enter Select", "f File Picker", "Esc Back", "q Quit"}
+		}
+	case ViewUploadWalletSelection:
+		if m.useUploadWalletFilePicker {
+			controls = []string{"↑/↓ Navigate", "→ Enter Directory", "Enter Select", "l Auto-discover", "Esc Back", "q Quit"}
+		} else {
+			controls = []string{"↑/↓ Navigate", "Enter Select", "f File Picker", "Esc Back", "q Quit"}
+		}
+	case ViewUploadVersion:
+		controls = []string{"Type version", "Enter Confirm", "Esc Back", "q Quit"}
+	case ViewUploadGitHash:
+		controls = []string{"Type git hash", "Enter Confirm", "Esc Back", "q Quit"}
+	case ViewUploadDryRun:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
+	case ViewUploadConfirmation:
+		controls = []string{"↑/↓ Navigate", "Enter Select", "Esc Back", "q Quit"}
+	case ViewUploadRunning:
+		controls = []string{"Please wait...", "q Quit"}
+	case ViewUploadSuccess, ViewUploadError:
+		controls = []string{"Enter Exit", "q Quit"}
 	}
 
 	// Use container width for controls (with same margin as main container)
@@ -821,6 +984,10 @@ func (m *Model) updateCommandSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case "build":
 				// Go to build type selection
 				m.state = ViewBuildTypeSelection
+				return m, nil
+			case "upload-module":
+				// Go to upload WASM selection
+				m.state = ViewUploadWasmSelection
 				return m, nil
 			case "lua-utils":
 				// Go to lua-utils selection
@@ -1028,6 +1195,20 @@ func (m *Model) handleBack() (tea.Model, tea.Cmd) {
 		m.state = ViewLuaUtilsSelection
 	case ViewLuaUtilsOutput:
 		m.state = ViewLuaUtilsEntrypoint
+	case ViewUploadWasmSelection:
+		m.state = ViewCommandSelection
+	case ViewUploadConfigSelection:
+		m.state = ViewUploadWasmSelection
+	case ViewUploadWalletSelection:
+		m.state = ViewUploadConfigSelection
+	case ViewUploadVersion:
+		m.state = ViewUploadWalletSelection
+	case ViewUploadGitHash:
+		m.state = ViewUploadVersion
+	case ViewUploadDryRun:
+		m.state = ViewUploadVersion
+	case ViewUploadConfirmation:
+		m.state = ViewUploadDryRun
 	}
 
 	return m, nil
@@ -1524,6 +1705,946 @@ func (m *Model) runLuaUtilsBundle() {
 	if m.program != nil {
 		m.program.Send(LuaUtilsCompleteMsg{Result: result})
 	}
+}
+
+// Upload Module update handlers
+
+// updateUploadWasmSelection handles WASM file selection
+func (m *Model) updateUploadWasmSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		// Switch to file picker mode
+		if !m.useUploadWasmFilePicker {
+			m.useUploadWasmFilePicker = true
+			m.uploadWasmFilePicker = nil // Reset to reinitialize
+			return m, nil
+		}
+	case "l":
+		// Switch to list/automatic discovery mode
+		if m.useUploadWasmFilePicker {
+			m.useUploadWasmFilePicker = false
+			m.uploadWasmSelector = nil // Reset to reinitialize
+			return m, nil
+		}
+	}
+
+	if key.Matches(msg, m.keyMap.Enter) {
+		var selectedFile string
+
+		if m.useUploadWasmFilePicker {
+			if m.uploadWasmFilePicker != nil && m.uploadWasmFilePicker.HasSelection() {
+				selectedFile = m.uploadWasmFilePicker.GetSelectedFile()
+			}
+		} else {
+			if m.uploadWasmSelector != nil {
+				if selected := m.uploadWasmSelector.GetSelected(); selected != nil {
+					selectedFile = selected.Value()
+				}
+			}
+		}
+
+		if selectedFile != "" && selectedFile != "No WASM files found" {
+			m.uploadFlow.WasmFile = selectedFile
+			m.state = ViewUploadConfigSelection
+			return m, nil
+		}
+	}
+
+	// Update the active component
+	if m.useUploadWasmFilePicker && m.uploadWasmFilePicker != nil {
+		model, cmd := m.uploadWasmFilePicker.Update(msg)
+		if newPicker, ok := model.(*components.FilePickerComponent); ok {
+			m.uploadWasmFilePicker = newPicker
+		}
+		return m, cmd
+	} else if !m.useUploadWasmFilePicker && m.uploadWasmSelector != nil {
+		model, cmd := m.uploadWasmSelector.Update(msg)
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.uploadWasmSelector = newSelector
+		}
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadConfigSelection handles config file selection
+func (m *Model) updateUploadConfigSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		// Switch to file picker mode
+		if !m.useUploadConfigFilePicker {
+			m.useUploadConfigFilePicker = true
+			m.uploadConfigFilePicker = nil // Reset to reinitialize
+			return m, nil
+		}
+	case "l":
+		// Switch to list/automatic discovery mode
+		if m.useUploadConfigFilePicker {
+			m.useUploadConfigFilePicker = false
+			m.uploadConfigSelector = nil // Reset to reinitialize
+			return m, nil
+		}
+	}
+
+	if key.Matches(msg, m.keyMap.Enter) {
+		var selectedFile string
+
+		if m.useUploadConfigFilePicker {
+			if m.uploadConfigFilePicker != nil && m.uploadConfigFilePicker.HasSelection() {
+				selectedFile = m.uploadConfigFilePicker.GetSelectedFile()
+			}
+		} else {
+			if m.uploadConfigSelector != nil {
+				if selected := m.uploadConfigSelector.GetSelected(); selected != nil {
+					selectedFile = selected.Value()
+				}
+			}
+		}
+
+		if selectedFile != "" && selectedFile != "No config files found" {
+			m.uploadFlow.ConfigFile = selectedFile
+			m.state = ViewUploadWalletSelection
+			return m, nil
+		}
+	}
+
+	// Update the active component
+	if m.useUploadConfigFilePicker && m.uploadConfigFilePicker != nil {
+		model, cmd := m.uploadConfigFilePicker.Update(msg)
+		if newPicker, ok := model.(*components.FilePickerComponent); ok {
+			m.uploadConfigFilePicker = newPicker
+		}
+		return m, cmd
+	} else if !m.useUploadConfigFilePicker && m.uploadConfigSelector != nil {
+		model, cmd := m.uploadConfigSelector.Update(msg)
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.uploadConfigSelector = newSelector
+		}
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadWalletSelection handles wallet file selection
+func (m *Model) updateUploadWalletSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "f":
+		// Switch to file picker mode
+		if !m.useUploadWalletFilePicker {
+			m.useUploadWalletFilePicker = true
+			m.uploadWalletFilePicker = nil // Reset to reinitialize
+			return m, nil
+		}
+	case "l":
+		// Switch to list/automatic discovery mode
+		if m.useUploadWalletFilePicker {
+			m.useUploadWalletFilePicker = false
+			m.uploadWalletSelector = nil // Reset to reinitialize
+			return m, nil
+		}
+	}
+
+	if key.Matches(msg, m.keyMap.Enter) {
+		var selectedFile string
+
+		if m.useUploadWalletFilePicker {
+			if m.uploadWalletFilePicker != nil && m.uploadWalletFilePicker.HasSelection() {
+				selectedFile = m.uploadWalletFilePicker.GetSelectedFile()
+			}
+		} else {
+			if m.uploadWalletSelector != nil {
+				if selected := m.uploadWalletSelector.GetSelected(); selected != nil {
+					selectedFile = selected.Value()
+				}
+			}
+		}
+
+		if selectedFile != "" && selectedFile != "No wallet files found" {
+			m.uploadFlow.WalletFile = selectedFile
+			m.state = ViewUploadVersion
+			return m, nil
+		}
+	}
+
+	// Update the active component
+	if m.useUploadWalletFilePicker && m.uploadWalletFilePicker != nil {
+		model, cmd := m.uploadWalletFilePicker.Update(msg)
+		if newPicker, ok := model.(*components.FilePickerComponent); ok {
+			m.uploadWalletFilePicker = newPicker
+		}
+		return m, cmd
+	} else if !m.useUploadWalletFilePicker && m.uploadWalletSelector != nil {
+		model, cmd := m.uploadWalletSelector.Update(msg)
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.uploadWalletSelector = newSelector
+		}
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadVersion handles version input
+func (m *Model) updateUploadVersion(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the input first
+	if m.uploadVersionInput != nil {
+		model, cmd := m.uploadVersionInput.Update(tea.Msg(msg))
+		if newInput, ok := model.(*components.TextInputComponent); ok {
+			m.uploadVersionInput = newInput
+		}
+
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			value := m.uploadVersionInput.GetValue()
+			if value != "" {
+				m.uploadFlow.Version = value
+				// Auto-set git hash from environment if available, skip manual input
+				if gitHash := os.Getenv("GITHUB_SHA"); gitHash != "" {
+					m.uploadFlow.GitHash = gitHash
+				}
+				m.state = ViewUploadDryRun
+				return m, nil
+			}
+		}
+
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadGitHash handles git hash input
+func (m *Model) updateUploadGitHash(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the input first
+	if m.uploadGitHashInput != nil {
+		model, cmd := m.uploadGitHashInput.Update(tea.Msg(msg))
+		if newInput, ok := model.(*components.TextInputComponent); ok {
+			m.uploadGitHashInput = newInput
+		}
+
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			value := m.uploadGitHashInput.GetValue()
+			m.uploadFlow.GitHash = value // Can be empty
+			m.state = ViewUploadDryRun
+			return m, nil
+		}
+
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadDryRun handles dry run selection
+func (m *Model) updateUploadDryRun(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the selector first
+	if m.uploadDryRunSelector != nil {
+		model, cmd := m.uploadDryRunSelector.Update(tea.Msg(msg))
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.uploadDryRunSelector = newSelector
+		}
+
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			if selected := m.uploadDryRunSelector.GetSelected(); selected != nil {
+				m.uploadFlow.DryRun = selected.Value() == "true"
+
+								// If user selected actual upload, check balance before proceeding
+				if !m.uploadFlow.DryRun {
+					err := m.checkBalanceAndCost()
+					if err != nil {
+						debug.Printf("Balance check failed: %v", err)
+						// Store the error for display in confirmation screen
+						m.uploadFlow.BalanceCheckError = err.Error()
+					} else {
+						// Clear any previous error
+						m.uploadFlow.BalanceCheckError = ""
+					}
+				}
+
+				// Reset confirmation selector to rebuild with new balance info
+				m.uploadConfirmSelector = nil
+				m.state = ViewUploadConfirmation
+				return m, nil
+			}
+		}
+
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadConfirmation handles upload confirmation
+func (m *Model) updateUploadConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Pass all messages directly to the selector first
+	if m.uploadConfirmSelector != nil {
+		model, cmd := m.uploadConfirmSelector.Update(tea.Msg(msg))
+		if newSelector, ok := model.(*components.ListSelectorComponent); ok {
+			m.uploadConfirmSelector = newSelector
+		}
+
+		// Check if enter was pressed after updating the component
+		if key.Matches(msg, m.keyMap.Enter) {
+			if selected := m.uploadConfirmSelector.GetSelected(); selected != nil {
+								switch selected.Value() {
+				case "confirm":
+					m.state = ViewUploadRunning
+					go m.runUpload() // Run upload in background
+					return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+						return TickMsg{}
+					})
+				case "insufficient":
+					// Do nothing - insufficient balance prevents upload
+					// User can only cancel to go back and fix the issue
+					return m, nil
+				case "cancel":
+					m.state = ViewUploadDryRun
+					return m, nil
+				}
+			}
+		}
+
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+// updateUploadRunning handles upload running state
+func (m *Model) updateUploadRunning(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Only allow quit during upload
+	return m, nil
+}
+
+// updateUploadResult handles upload result state
+func (m *Model) updateUploadResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle exit
+	if key.Matches(msg, m.keyMap.Enter) {
+		return m, tea.Quit
+	}
+
+	return m, nil
+}
+
+// runUpload executes the actual upload process
+func (m *Model) runUpload() {
+	debug.Printf("Starting upload process")
+	debug.Printf("Upload config: %+v", m.uploadFlow)
+
+	var uploadErr error
+	success := true
+
+	// TODO: Execute the actual upload using the upload command
+	// For now, simulate the upload process
+	uploadErr = m.executeRealUpload()
+	if uploadErr != nil {
+		debug.Printf("Upload failed: %v", uploadErr)
+		success = false
+	} else {
+		debug.Printf("Upload completed successfully")
+	}
+
+	// Send final result
+	result := &UploadResult{
+		Success: success,
+		Error:   uploadErr,
+		Flow:    m.uploadFlow,
+	}
+
+	if m.program != nil {
+		m.program.Send(UploadCompleteMsg{Result: result})
+	}
+}
+
+// executeRealUpload runs the actual upload process
+func (m *Model) executeRealUpload() error {
+	debug.Printf("Executing real upload for WASM: %s", m.uploadFlow.WasmFile)
+
+	// Build the arguments for calling the harlequin binary directly
+	args := []string{"upload-module"}
+	if m.uploadFlow.WasmFile != "" {
+		args = append(args, "--wasm-file", m.uploadFlow.WasmFile)
+	}
+	if m.uploadFlow.ConfigFile != "" {
+		args = append(args, "--config", m.uploadFlow.ConfigFile)
+	}
+	if m.uploadFlow.WalletFile != "" {
+		args = append(args, "--wallet-file", m.uploadFlow.WalletFile)
+	}
+	if m.uploadFlow.Version != "" {
+		args = append(args, "--version", m.uploadFlow.Version)
+	}
+	if m.uploadFlow.GitHash != "" {
+		args = append(args, "--git-hash", m.uploadFlow.GitHash)
+	}
+	if m.uploadFlow.DryRun {
+		args = append(args, "--dry-run")
+	}
+
+	debug.Printf("Calling harlequin binary with args: %v", args)
+
+	// Find the harlequin binary path
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	// Call the harlequin binary with upload-module command
+	cmd := exec.CommandContext(m.ctx, execPath, args...)
+	output, err := cmd.CombinedOutput()
+
+	debug.Printf("Upload command output: %s", string(output))
+	if err != nil {
+		debug.Printf("Upload command failed: %v", err)
+		return fmt.Errorf("upload failed: %w", err)
+	}
+
+	return nil
+}
+
+// checkBalanceAndCost checks wallet balance and estimates upload cost
+func (m *Model) checkBalanceAndCost() error {
+	debug.Printf("Checking wallet balance and upload cost")
+
+	// We need to load the wallet and WASM file to check balance and cost
+	// Read WASM file to get size
+	wasmData, err := os.ReadFile(m.uploadFlow.WasmFile)
+	if err != nil {
+		return fmt.Errorf("failed to read WASM file: %w", err)
+	}
+
+	// Load wallet
+	var jwk map[string]interface{}
+	if os.Getenv("WALLET") != "" {
+		err = json.Unmarshal([]byte(os.Getenv("WALLET")), &jwk)
+		if err != nil {
+			return fmt.Errorf("failed to parse WALLET environment variable: %w", err)
+		}
+	} else {
+		walletContent, err := os.ReadFile(m.uploadFlow.WalletFile)
+		if err != nil {
+			return fmt.Errorf("failed to read wallet file %s: %w", m.uploadFlow.WalletFile, err)
+		}
+		err = json.Unmarshal(walletContent, &jwk)
+		if err != nil {
+			return fmt.Errorf("failed to parse wallet file: %w", err)
+		}
+	}
+
+	// Create signer
+	signer, err := signers.NewArweaveSigner(jwk)
+	if err != nil {
+		return fmt.Errorf("failed to create Arweave signer: %w", err)
+	}
+
+	// Create authenticated client and check balance
+	turboClient := turbo.Authenticated(nil, signer)
+	balance, err := turboClient.GetBalanceForSigner(m.ctx)
+	if err != nil {
+		// Check if it's a 404 User Not Found error - treat as 0 balance
+		if strings.Contains(err.Error(), "HTTP 404") || strings.Contains(err.Error(), "User Not Found") {
+			debug.Printf("User not found (404) - treating as 0 balance")
+			balance = &types.Balance{
+				WinC:     "0",
+				Credits:  "0",
+				Currency: "winston",
+			}
+		} else {
+			return fmt.Errorf("failed to check wallet balance: %w", err)
+		}
+	}
+
+	// Estimate upload cost
+	unauthenticatedClient := turbo.Unauthenticated(nil)
+	fileSize := int64(len(wasmData))
+	uploadCosts, err := unauthenticatedClient.GetUploadCosts(m.ctx, []int64{fileSize})
+	if err != nil {
+		return fmt.Errorf("failed to estimate upload cost: %w", err)
+	}
+
+	if len(uploadCosts) == 0 {
+		return fmt.Errorf("no upload cost estimate received")
+	}
+
+	// Store balance and cost in flow
+	m.uploadFlow.Balance = balance.WinC
+	m.uploadFlow.EstimatedCost = uploadCosts[0].Winc
+
+	debug.Printf("Balance: %s, Estimated cost: %s", balance.WinC, uploadCosts[0].Winc)
+
+	return nil
+}
+
+// checkInsufficientBalance checks if wallet has sufficient balance for upload
+func (m *Model) checkInsufficientBalance() error {
+	if m.uploadFlow.Balance == "" || m.uploadFlow.EstimatedCost == "" {
+		return nil // No balance info available
+	}
+
+	// Parse balance and cost as integers for comparison
+	balanceInt, err := strconv.ParseInt(m.uploadFlow.Balance, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse balance: %w", err)
+	}
+
+	costInt, err := strconv.ParseInt(m.uploadFlow.EstimatedCost, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse cost estimate: %w", err)
+	}
+
+	// Check if balance is sufficient
+	if balanceInt < costInt {
+		return fmt.Errorf("insufficient wallet balance: need %s, have %s Winston Credits",
+			m.uploadFlow.EstimatedCost, m.uploadFlow.Balance)
+	}
+
+	return nil
+}
+
+// winstonToCredits converts Winston Credits to Credits (AR denomination)
+func winstonToCredits(winston string) string {
+	if winston == "" || winston == "0" {
+		return "0"
+	}
+
+	// Convert string to big.Int for precision
+	winstonBig := new(big.Int)
+	winstonBig, ok := winstonBig.SetString(winston, 10)
+	if !ok {
+		debug.Printf("Error parsing winston string: %s", winston)
+		return winston + " Winston" // Fallback to raw winston
+	}
+
+	// Convert Winston to AR
+	ar := utils.WinstonToAR(winstonBig)
+
+	// Format with reasonable precision (6 decimal places)
+	return ar.Text('f', 6)
+}
+
+// formatCreditsDisplay formats credits with appropriate units
+func formatCreditsDisplay(winston string) string {
+	credits := winstonToCredits(winston)
+	if credits == "0" {
+		return "0 Credits"
+	}
+	return credits + " Credits"
+}
+
+// Upload Module view functions
+
+// viewUploadWasmSelection renders the WASM file selection view
+func (m *Model) viewUploadWasmSelection() string {
+	// Initialize the appropriate selector on first view
+	if m.uploadWasmSelector == nil && !m.useUploadWasmFilePicker {
+		// Try automatic discovery first
+		cwd, _ := os.Getwd()
+		actualPanelWidth := m.getPanelWidth() - 2
+		if selector, err := components.CreateWasmSelectorWithDiscovery(cwd, actualPanelWidth, m.getPanelHeight()); err == nil {
+			m.uploadWasmSelector = selector
+		} else {
+			// Fall back to file picker if discovery fails
+			m.useUploadWasmFilePicker = true
+		}
+	}
+
+	if m.useUploadWasmFilePicker {
+		// Use manual file picker
+		if m.uploadWasmFilePicker == nil {
+			cwd, _ := os.Getwd()
+			actualPanelWidth := m.getPanelWidth() - 2
+			m.uploadWasmFilePicker = components.NewFilePicker(actualPanelWidth, m.getPanelHeight())
+			m.uploadWasmFilePicker.SetCurrentDirectory(cwd)
+			m.uploadWasmFilePicker.SetAllowedTypes([]string{".wasm"})
+		}
+
+		leftPanel := m.uploadWasmFilePicker.View()
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Manual File Selection",
+			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .wasm files with Enter\n\nPress 'l' to switch to automatic discovery",
+				m.uploadWasmFilePicker.GetCurrentDirectory()),
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	} else {
+		// Use automatic discovery list
+		leftPanel := m.uploadWasmSelector.View()
+
+		// Right panel with discovery info
+		selectedFile := ""
+		if selected := m.uploadWasmSelector.GetSelected(); selected != nil {
+			selectedFile = selected.Value()
+		}
+
+		description := "Select the WASM file to upload.\n\nFiles are found recursively (excluding build directories)\n\nPress 'f' to switch to manual file picker"
+		if selectedFile != "" {
+			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
+		}
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Auto-discovered Files",
+			description,
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	}
+}
+
+// viewUploadConfigSelection renders the config file selection view
+func (m *Model) viewUploadConfigSelection() string {
+	// Initialize the appropriate selector on first view
+	if m.uploadConfigSelector == nil && !m.useUploadConfigFilePicker {
+		// Try automatic discovery first
+		cwd, _ := os.Getwd()
+		actualPanelWidth := m.getPanelWidth() - 2
+		if selector, err := components.CreateConfigSelectorWithDiscovery(cwd, actualPanelWidth, m.getPanelHeight()); err == nil {
+			m.uploadConfigSelector = selector
+		} else {
+			// Fall back to file picker if discovery fails
+			m.useUploadConfigFilePicker = true
+		}
+	}
+
+	if m.useUploadConfigFilePicker {
+		// Use manual file picker
+		if m.uploadConfigFilePicker == nil {
+			cwd, _ := os.Getwd()
+			actualPanelWidth := m.getPanelWidth() - 2
+			m.uploadConfigFilePicker = components.NewFilePicker(actualPanelWidth, m.getPanelHeight())
+			m.uploadConfigFilePicker.SetCurrentDirectory(cwd)
+			m.uploadConfigFilePicker.SetAllowedTypes([]string{".yml", ".yaml"})
+		}
+
+		leftPanel := m.uploadConfigFilePicker.View()
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Manual File Selection",
+			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .yml/.yaml files with Enter\n\nPress 'l' to switch to automatic discovery",
+				m.uploadConfigFilePicker.GetCurrentDirectory()),
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	} else {
+		// Use automatic discovery list
+		leftPanel := m.uploadConfigSelector.View()
+
+		// Right panel with discovery info
+		selectedFile := ""
+		if selected := m.uploadConfigSelector.GetSelected(); selected != nil {
+			selectedFile = selected.Value()
+		}
+
+		description := "Select the build configuration file.\n\nLooking for ao-build-config.yml and .harlequin.yaml files\n\nPress 'f' to switch to manual file picker"
+		if selectedFile != "" {
+			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
+		}
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Auto-discovered Files",
+			description,
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	}
+}
+
+// viewUploadWalletSelection renders the wallet file selection view
+func (m *Model) viewUploadWalletSelection() string {
+	// Initialize the appropriate selector on first view
+	if m.uploadWalletSelector == nil && !m.useUploadWalletFilePicker {
+		// Try automatic discovery first
+		cwd, _ := os.Getwd()
+		actualPanelWidth := m.getPanelWidth() - 2
+		if selector, err := components.CreateWalletSelectorWithDiscovery(cwd, actualPanelWidth, m.getPanelHeight()); err == nil {
+			m.uploadWalletSelector = selector
+		} else {
+			// Fall back to file picker if discovery fails
+			m.useUploadWalletFilePicker = true
+		}
+	}
+
+	if m.useUploadWalletFilePicker {
+		// Use manual file picker
+		if m.uploadWalletFilePicker == nil {
+			cwd, _ := os.Getwd()
+			actualPanelWidth := m.getPanelWidth() - 2
+			m.uploadWalletFilePicker = components.NewFilePicker(actualPanelWidth, m.getPanelHeight())
+			m.uploadWalletFilePicker.SetCurrentDirectory(cwd)
+			m.uploadWalletFilePicker.SetAllowedTypes([]string{".json"})
+		}
+
+		leftPanel := m.uploadWalletFilePicker.View()
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Manual File Selection",
+			fmt.Sprintf("Current directory: %s\n\nNavigate with ↑/↓\nEnter directories with →\nSelect .json wallet files with Enter\n\nPress 'l' to switch to automatic discovery",
+				m.uploadWalletFilePicker.GetCurrentDirectory()),
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	} else {
+		// Use automatic discovery list
+		leftPanel := m.uploadWalletSelector.View()
+
+		// Right panel with discovery info
+		selectedFile := ""
+		if selected := m.uploadWalletSelector.GetSelected(); selected != nil {
+			selectedFile = selected.Value()
+		}
+
+		description := "Select the Arweave wallet file.\n\nLooking for key.json, wallet.json, and similar files\n\nPress 'f' to switch to manual file picker"
+		if selectedFile != "" {
+			description = fmt.Sprintf("Selected: %s\n\n%s", selectedFile, description)
+		}
+
+		rightPanel := components.CreateDescriptionPanel(
+			"Auto-discovered Files",
+			description,
+			m.getPanelWidth()-2,
+			0,
+		)
+
+		return m.createTwoPanelLayout(leftPanel, rightPanel)
+	}
+}
+
+// viewUploadVersion renders the version input view
+func (m *Model) viewUploadVersion() string {
+	// Create version input if not exists
+	if m.uploadVersionInput == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+		m.uploadVersionInput = components.CreateVersionInput(actualPanelWidth, m.getPanelHeight())
+	}
+
+	leftPanel := m.uploadVersionInput.View()
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Module Version",
+		"Enter the version for your module.\n\nThis will be included in the upload tags for tracking.\n\nExamples:\n• v1.0.0\n• v2.1.3\n• v0.1.0-beta\n• dev\n\nSemantic versioning is recommended.",
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewUploadGitHash renders the git hash input view
+func (m *Model) viewUploadGitHash() string {
+	// Create git hash input if not exists
+	if m.uploadGitHashInput == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+		m.uploadGitHashInput = components.CreateOutputDirInput(actualPanelWidth, m.getPanelHeight())
+		// Try to set git hash from environment
+		if gitHash := os.Getenv("GITHUB_SHA"); gitHash != "" {
+			m.uploadGitHashInput.SetValue(gitHash)
+		}
+	}
+
+	leftPanel := m.uploadGitHashInput.View()
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Git Hash (Optional)",
+		"Enter the git commit hash for this build.\n\nThis helps track which version of your code was used.\n\nLeave empty for auto-detection or if not using git.\n\nThe hash will be included in upload tags.",
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewUploadDryRun renders the dry run selection view
+func (m *Model) viewUploadDryRun() string {
+	// Create dry run selector if not exists
+	if m.uploadDryRunSelector == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+		m.uploadDryRunSelector = components.CreateUploadDryRunSelector(actualPanelWidth, m.getPanelHeight())
+	}
+
+	leftPanel := m.uploadDryRunSelector.View()
+
+	// Right panel with description
+	selected := m.uploadDryRunSelector.GetSelected()
+	description := "Choose whether to perform a dry run or actual upload."
+	if selected != nil {
+		switch selected.Value() {
+		case "true":
+			description = "Dry Run Mode\n\nThis will:\n• Parse and validate the WASM file\n• Read configuration files\n• Generate all upload tags\n• Show exactly what would be uploaded\n• NOT actually upload anything\n\nGreat for testing and validation."
+		case "false":
+			description = "Actual Upload Mode\n\nThis will:\n• Perform all validation steps\n• Load your Arweave wallet\n• Create and sign the data item\n• Upload to Arweave via Turbo\n• Provide transaction ID and URL\n\nRequires wallet with sufficient funds."
+		default:
+			description = selected.Description()
+		}
+	}
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Upload Mode",
+		description,
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewUploadConfirmation renders the upload confirmation view
+func (m *Model) viewUploadConfirmation() string {
+	// Create confirmation selector if not exists or if balance info changed
+	if m.uploadConfirmSelector == nil {
+		actualPanelWidth := m.getPanelWidth() - 2
+
+				// Check if we have balance information and if it's sufficient for actual uploads
+		if !m.uploadFlow.DryRun {
+						if m.uploadFlow.BalanceCheckError != "" {
+				// Balance check failed - show error state
+				// Use regular confirmation selector but with error context
+				m.uploadConfirmSelector = components.CreateUploadConfirmationSelector(actualPanelWidth, m.getPanelHeight())
+			} else if m.uploadFlow.Balance != "" && m.uploadFlow.EstimatedCost != "" {
+				// Parse balance and cost to check sufficiency
+				hasSufficientBalance := true
+				if err := m.checkInsufficientBalance(); err != nil {
+					hasSufficientBalance = false
+				}
+
+								m.uploadConfirmSelector = components.CreateUploadConfirmationSelectorWithBalance(
+					actualPanelWidth,
+					m.getPanelHeight(),
+					hasSufficientBalance,
+					formatCreditsDisplay(m.uploadFlow.Balance),
+					formatCreditsDisplay(m.uploadFlow.EstimatedCost),
+				)
+			} else {
+				// No balance info available
+				m.uploadConfirmSelector = components.CreateUploadConfirmationSelector(actualPanelWidth, m.getPanelHeight())
+			}
+		} else {
+			// Use regular confirmation selector for dry runs
+			m.uploadConfirmSelector = components.CreateUploadConfirmationSelector(actualPanelWidth, m.getPanelHeight())
+		}
+	}
+
+	leftPanel := m.formatUploadPreview()
+	rightPanel := m.uploadConfirmSelector.View()
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewUploadRunning renders the upload progress view
+func (m *Model) viewUploadRunning() string {
+	leftPanel := ""
+	if m.progress != nil {
+		leftPanel = m.progress.ViewContent()
+	}
+
+	rightPanel := components.CreateDescriptionPanel(
+		"Upload Progress",
+		"Uploading your module...\n\nThis process:\n• Analyzes WASM metadata\n• Creates upload tags\n• Signs the data item\n• Uploads to Arweave\n\nPlease wait...",
+		m.getPanelWidth()-2,
+		0,
+	)
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// viewUploadResult renders the upload result view
+func (m *Model) viewUploadResult() string {
+	if m.result == nil {
+		return "No result available"
+	}
+
+	leftPanel := m.result.ViewPanelContent()
+	rightPanel := m.result.ViewDetailsContent()
+
+	return m.createTwoPanelLayout(leftPanel, rightPanel)
+}
+
+// formatUploadPreview formats the current upload config for preview
+func (m *Model) formatUploadPreview() string {
+	mode := "Actual Upload"
+	if m.uploadFlow.DryRun {
+		mode = "Dry Run"
+	}
+
+	preview := fmt.Sprintf(`Upload Configuration
+
+WASM File: %s
+Config File: %s
+Wallet File: %s
+Version: %s
+Git Hash: %s
+Mode: %s`,
+		m.uploadFlow.WasmFile,
+		m.uploadFlow.ConfigFile,
+		m.uploadFlow.WalletFile,
+		m.uploadFlow.Version,
+		m.uploadFlow.GitHash,
+		mode,
+	)
+
+		// Add balance information for actual uploads
+	if !m.uploadFlow.DryRun {
+		if m.uploadFlow.BalanceCheckError != "" {
+			// Show balance check error
+			preview += fmt.Sprintf(`
+
+Balance Check:
+Status: ❌ Error checking balance
+Error: %s`, m.uploadFlow.BalanceCheckError)
+		} else if m.uploadFlow.Balance != "" && m.uploadFlow.EstimatedCost != "" {
+		// Check if balance is sufficient
+		isBalanceSufficient := true
+		if err := m.checkInsufficientBalance(); err != nil {
+			isBalanceSufficient = false
+		}
+
+		balanceStatus := "✅ Sufficient"
+		if !isBalanceSufficient {
+			balanceStatus = "⚠️  Insufficient"
+		}
+
+				preview += fmt.Sprintf(`
+
+Balance Check:
+Current Balance: %s
+Estimated Cost: %s
+Status: %s`,
+			formatCreditsDisplay(m.uploadFlow.Balance),
+			formatCreditsDisplay(m.uploadFlow.EstimatedCost),
+			balanceStatus)
+
+		if !isBalanceSufficient {
+			// Parse balance and cost to show shortfall
+			if balanceInt, err1 := strconv.ParseInt(m.uploadFlow.Balance, 10, 64); err1 == nil {
+				if costInt, err2 := strconv.ParseInt(m.uploadFlow.EstimatedCost, 10, 64); err2 == nil {
+					shortfall := costInt - balanceInt
+					shortfallStr := strconv.FormatInt(shortfall, 10)
+					preview += fmt.Sprintf(`
+Shortfall: %s`, formatCreditsDisplay(shortfallStr))
+				}
+			}
+		}
+		}
+	}
+
+	preview += fmt.Sprintf(`
+
+Ready to proceed with %s.`, mode)
+
+	return preview
 }
 
 // RunBuildTUI starts the modernized interactive build TUI

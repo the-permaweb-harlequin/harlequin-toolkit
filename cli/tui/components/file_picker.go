@@ -42,6 +42,11 @@ func (fpc *FilePickerComponent) SetCurrentDirectory(dir string) {
 	fpc.filepicker.CurrentDirectory = dir
 }
 
+// SetAllowedTypes sets the allowed file types for the file picker
+func (fpc *FilePickerComponent) SetAllowedTypes(types []string) {
+	fpc.filepicker.AllowedTypes = types
+}
+
 // SetSize updates the file picker dimensions
 func (fpc *FilePickerComponent) SetSize(width, height int) {
 	fpc.width = width
