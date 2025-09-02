@@ -1,12 +1,17 @@
 {
   "name": "harlequin-cli",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Harlequin CLI - Arweave Development Toolkit",
   "main": "main.go",
   "scripts": {
     "build": "go build -ldflags=\"-s -w\" -o ../dist/cli/harlequin ."
   },
-  "keywords": ["arweave", "cli", "development", "toolkit"],
+  "keywords": [
+    "arweave",
+    "cli",
+    "development",
+    "toolkit"
+  ],
   "author": "atticusofsparta <atticusofsparta@protonmail.com>",
   "license": "MIT",
   "repository": {

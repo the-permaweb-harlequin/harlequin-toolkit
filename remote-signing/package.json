@@ -1,6 +1,6 @@
 {
   "name": "harlequin-remote-signing",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Harlequin Remote Signing Server - A secure HTTP/WebSocket service for remote transaction signing workflows",
   "main": "cmd/remote-signing/main.go",
   "scripts": {
