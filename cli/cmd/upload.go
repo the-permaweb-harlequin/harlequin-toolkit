@@ -598,8 +598,30 @@ func uploadModule(ctx context.Context, wasmPath, configPath, walletPath, version
 	fmt.Println("   • Estimating upload cost...")
 	unauthenticatedClient := turbo.Unauthenticated(nil)
 	fileSize := int64(len(wasmBinary))
+	debug.Printf("Requesting upload costs for file size: %d bytes", fileSize)
+
 	uploadCosts, err := unauthenticatedClient.GetUploadCosts(ctx, []int64{fileSize})
 	if err != nil {
+		debug.Printf("GetUploadCosts API error: %v", err)
+
+		// Check if it's a JSON parsing error - this is a known issue with the API
+		if strings.Contains(err.Error(), "json: cannot unmarshal object into Go value of type []types.UploadCost") {
+			debug.Printf("Known issue: API returned object but expected array")
+			fmt.Printf("   • ⚠️  Unable to estimate upload cost due to API format issue\n")
+			fmt.Printf("   • Continuing with upload - costs will be deducted as normal\n")
+			fmt.Printf("   • Note: This is a known temporary issue with the cost estimation API\n")
+
+			// Skip cost validation and proceed with upload
+			fmt.Println()
+			fmt.Println("🚀 UPLOAD PROCESS")
+			fmt.Println("   ──────────────")
+			fmt.Println("   • Initializing Turbo client...")
+			fmt.Println("   • Preparing data item for upload...")
+
+			// Jump to upload logic bypassing cost validation
+			return continueUploadWithoutCostCheck(ctx, turboClient, wasmBinary, publishingTags)
+		}
+
 		return fmt.Errorf("failed to estimate upload cost: %w", err)
 	}
 
@@ -693,6 +715,75 @@ func uploadModule(ctx context.Context, wasmPath, configPath, walletPath, version
 	fmt.Printf("   • Arweave URL: https://arweave.net/%s\n", dataItemId)
 	fmt.Printf("   • Module Version: %s\n", version)
 	fmt.Printf("   • Git Hash: %s\n", gitHash)
+	fmt.Println()
+	fmt.Println("🎭 Module successfully deployed to Arweave!")
+
+	return nil
+}
+
+// continueUploadWithoutCostCheck performs the upload without prior cost validation
+// Used when the cost estimation API is unavailable or returning incorrect format
+func continueUploadWithoutCostCheck(ctx context.Context, turboClient turbo.TurboAuthenticatedClient, wasmBinary []byte, publishingTags map[string]string) error {
+	debug.Printf("Performing upload without cost validation")
+
+	// Convert tags to turbo format
+	var tags []types.Tag
+	for key, value := range publishingTags {
+		tags = append(tags, types.Tag{
+			Name:  key,
+			Value: value,
+		})
+	}
+
+	// Create upload request
+	uploadRequest := &types.UploadRequest{
+		Data: wasmBinary,
+		Tags: tags,
+		Events: &types.UploadEvents{
+			OnProgress: func(event types.ProgressEvent) {
+				switch event.Step {
+				case "signing":
+					if event.ProcessedBytes == 0 {
+						fmt.Println("   • Signing data item...")
+					}
+				case "uploading":
+					if event.ProcessedBytes == 0 {
+						fmt.Println("   • Uploading to Arweave...")
+					}
+					if event.ProcessedBytes > 0 && event.ProcessedBytes < event.TotalBytes {
+						percentage := float64(event.ProcessedBytes) / float64(event.TotalBytes) * 100
+						fmt.Printf("   • Upload progress: %.1f%% (%s/%s)\n",
+							percentage,
+							wasm.FormatMemorySize(uint32(event.ProcessedBytes)),
+							wasm.FormatMemorySize(uint32(event.TotalBytes)))
+					}
+				}
+			},
+			OnSigningSuccess: func() {
+				fmt.Println("   • ✅ Data signing completed successfully")
+			},
+			OnUploadSuccess: func(result *types.UploadResult) {
+				fmt.Printf("   • 🎉 Upload completed! Transaction ID: %s\n", result.ID)
+			},
+			OnUploadError: func(err error) {
+				fmt.Printf("   • ❌ Upload failed: %v\n", err)
+			},
+		},
+	}
+
+	// Upload data item
+	result, err := turboClient.Upload(ctx, uploadRequest)
+	if err != nil {
+		return fmt.Errorf("failed to upload WASM binary: %w", err)
+	}
+
+	dataItemId := result.ID
+	fmt.Println()
+
+	fmt.Println("✅ UPLOAD SUCCESSFUL!")
+	fmt.Println("   ─────────────────")
+	fmt.Printf("   • Transaction ID: %s\n", dataItemId)
+	fmt.Printf("   • Arweave URL: https://arweave.net/%s\n", dataItemId)
 	fmt.Println()
 	fmt.Println("🎭 Module successfully deployed to Arweave!")
 

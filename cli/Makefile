@@ -38,11 +38,46 @@ clean:
 	rm -rf $(BIN_DIR)
 	@echo "✅ Clean complete"
 
-# Run tests
+# Run all tests
 .PHONY: test
 test:
-	@echo "Running CLI tests..."
+	@echo "Running all tests..."
+	@$(MAKE) test-unit
+	@$(MAKE) test-integration
+	@$(MAKE) test-e2e
+
+# Run unit tests (CLI internal tests)
+.PHONY: test-unit
+test-unit:
+	@echo "Running unit tests..."
 	go test ./...
+	cd tests && go test ./unit/...
+
+# Run integration tests
+.PHONY: test-integration
+test-integration:
+	@echo "Running integration tests..."
+	cd tests && go test ./integration/...
+
+# Run end-to-end tests
+.PHONY: test-e2e
+test-e2e:
+	@echo "Running end-to-end tests..."
+	cd tests && go test ./e2e/...
+
+# Run tests with coverage
+.PHONY: test-coverage
+test-coverage:
+	@echo "Running tests with coverage..."
+	go test -cover ./...
+	cd tests && go test -cover ./...
+
+# Run tests in verbose mode
+.PHONY: test-verbose
+test-verbose:
+	@echo "Running tests in verbose mode..."
+	go test -v ./...
+	cd tests && go test -v ./...
 
 # Install dependencies
 .PHONY: deps
@@ -56,11 +91,16 @@ deps:
 help:
 	@echo "Harlequin Toolkit - Available commands:"
 	@echo ""
-	@echo "  build    Build the harlequin CLI binary to bin/harlequin"
-	@echo "  dev      Build and run the CLI binary"
-	@echo "  run      Run the CLI directly with go run (no binary)"
-	@echo "  clean    Remove build artifacts"
-	@echo "  test     Run CLI tests"
-	@echo "  deps     Install and tidy Go dependencies"
-	@echo "  help     Show this help message"
+	@echo "  build              Build the harlequin CLI binary to bin/harlequin"
+	@echo "  dev                Build and run the CLI binary"
+	@echo "  run                Run the CLI directly with go run (no binary)"
+	@echo "  clean              Remove build artifacts"
+	@echo "  test               Run all tests (unit, integration, e2e)"
+	@echo "  test-unit          Run unit tests only"
+	@echo "  test-integration   Run integration tests only"
+	@echo "  test-e2e           Run end-to-end tests only"
+	@echo "  test-coverage      Run tests with coverage reporting"
+	@echo "  test-verbose       Run tests in verbose mode"
+	@echo "  deps               Install and tidy Go dependencies"
+	@echo "  help               Show this help message"
 	@echo ""

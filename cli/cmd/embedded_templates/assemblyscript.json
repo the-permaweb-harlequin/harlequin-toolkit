@@ -1,0 +1,10 @@
+{
+  "language": "assemblyscript",
+  "name": "AssemblyScript",
+  "description": "AssemblyScript AO process with WASM compilation",
+  "instructions": ["pnpm install", "pnpm run build", "pnpm run test"],
+  "version": "1.0.0",
+  "created": "2025-09-02T07:38:07.435Z",
+  "tarball": "assemblyscript.tar.gz",
+  "size": 4411
+}

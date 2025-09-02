@@ -1,0 +1,11 @@
+{
+  "kty": "RSA",
+  "n": "test-rsa-key-n-value-for-testing-purposes-only",
+  "e": "AQAB",
+  "d": "test-rsa-key-d-value-for-testing-purposes-only",
+  "p": "test-rsa-key-p-value-for-testing-purposes-only",
+  "q": "test-rsa-key-q-value-for-testing-purposes-only",
+  "dp": "test-rsa-key-dp-value-for-testing-purposes-only",
+  "dq": "test-rsa-key-dq-value-for-testing-purposes-only",
+  "qi": "test-rsa-key-qi-value-for-testing-purposes-only"
+}

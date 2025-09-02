@@ -13,11 +13,10 @@ import (
 type InitWizardState int
 
 const (
-	StateProjectName InitWizardState = iota
-	StateTemplateSelection
+	StateTemplateSelection InitWizardState = iota
+	StateProjectName
 	StateAuthorName
 	StateGitHubUser
-	StateConfirmation
 	StateComplete
 )
 
@@ -55,45 +54,6 @@ func (i templateItem) Description() string { return fmt.Sprintf("Build System: %
 
 var availableTemplateItems = []list.Item{
 	templateItem{
-		name:        "lua",
-		description: "Lua AO Process",
-		language:    "Lua",
-		buildSystem: "CMake + LuaRocks",
-		features: []string{
-			"C trampoline with embedded Lua interpreter",
-			"LuaRocks package management",
-			"WebAssembly compilation",
-			"Modular architecture",
-			"Comprehensive testing with Busted",
-		},
-	},
-	templateItem{
-		name:        "c",
-		description: "C AO Process",
-		language:    "C",
-		buildSystem: "CMake + Conan",
-		features: []string{
-			"Conan package management",
-			"Google Test integration",
-			"Emscripten WebAssembly compilation",
-			"Memory-efficient implementation",
-			"Docker build support",
-		},
-	},
-	templateItem{
-		name:        "rust",
-		description: "Rust AO Process",
-		language:    "Rust",
-		buildSystem: "Cargo + wasm-pack",
-		features: []string{
-			"Thread-safe state management",
-			"Serde JSON serialization",
-			"wasm-bindgen WebAssembly bindings",
-			"Comprehensive error handling",
-			"Size-optimized builds",
-		},
-	},
-	templateItem{
 		name:        "assemblyscript",
 		description: "AssemblyScript AO Process",
 		language:    "AssemblyScript",
@@ -106,13 +66,25 @@ var availableTemplateItems = []list.Item{
 			"Size optimization",
 		},
 	},
+	templateItem{
+		name:        "go",
+		description: "Go AO Process",
+		language:    "Go",
+		buildSystem: "Go + TinyGo",
+		features: []string{
+			"Type-safe Go programming",
+			"Goroutines and channels",
+			"Standard library support",
+			"TinyGo WebAssembly compilation",
+			"Efficient memory usage",
+		},
+	},
 }
 
 func NewInitWizardComponent() *InitWizardComponent {
 	// Project name input
 	projectInput := textinput.New()
 	projectInput.Placeholder = "my-ao-process"
-	projectInput.Focus()
 	projectInput.CharLimit = 50
 	projectInput.Width = 40
 
@@ -128,8 +100,16 @@ func NewInitWizardComponent() *InitWizardComponent {
 	githubInput.CharLimit = 50
 	githubInput.Width = 40
 
-	// Template list
-	templateList := list.New(availableTemplateItems, list.NewDefaultDelegate(), 0, 0)
+	// Template list with proper styling
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.
+		Foreground(lipgloss.Color("#902f17")).
+		Bold(true).
+		Underline(true)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
+		Foreground(lipgloss.Color("#564f41"))
+
+	templateList := list.New(availableTemplateItems, delegate, 0, 0)
 	templateList.Title = "Select Template"
 	templateList.SetShowStatusBar(false)
 	templateList.SetFilteringEnabled(false)
@@ -139,7 +119,7 @@ func NewInitWizardComponent() *InitWizardComponent {
 		Padding(0, 0, 1, 0)
 
 	return &InitWizardComponent{
-		state:        StateProjectName,
+		state:        StateTemplateSelection,
 		projectInput: projectInput,
 		authorInput:  authorInput,
 		githubInput:  githubInput,
@@ -159,33 +139,29 @@ func (iwc *InitWizardComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		iwc.width = msg.Width
 		iwc.height = msg.Height
-		iwc.templateList.SetWidth(msg.Width - 4)
-		iwc.templateList.SetHeight(msg.Height - 8)
+
+		// Calculate proper panel width for template list (match main TUI exactly)
+		containerWidth := msg.Width - 10
+		layoutWidth := containerWidth - 2
+		basePanelWidth := (layoutWidth - 1) / 2
+		panelWidth := basePanelWidth + 3  // Same as main TUI, no double reduction
+		if panelWidth < 15 {
+			panelWidth = 15
+		}
+
+		iwc.templateList.SetWidth(panelWidth - 2)  // Account for panel padding
+		iwc.templateList.SetHeight(12)
 
 	case tea.KeyMsg:
 		switch iwc.state {
-		case StateProjectName:
-			switch msg.String() {
-			case "enter":
-				if strings.TrimSpace(iwc.projectInput.Value()) != "" {
-					iwc.ProjectName = strings.TrimSpace(iwc.projectInput.Value())
-					iwc.state = StateTemplateSelection
-					return iwc, nil
-				}
-			case "ctrl+c", "esc":
-				return iwc, tea.Quit
-			}
-			iwc.projectInput, cmd = iwc.projectInput.Update(msg)
-			return iwc, cmd
-
 		case StateTemplateSelection:
 			switch msg.String() {
 			case "enter":
 				if selected := iwc.templateList.SelectedItem(); selected != nil {
 					if item, ok := selected.(templateItem); ok {
 						iwc.TemplateLang = item.name
-						iwc.state = StateAuthorName
-						iwc.authorInput.Focus()
+						iwc.state = StateProjectName
+						iwc.projectInput.Focus()
 						return iwc, textinput.Blink
 					}
 				}
@@ -193,6 +169,21 @@ func (iwc *InitWizardComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return iwc, tea.Quit
 			}
 			iwc.templateList, cmd = iwc.templateList.Update(msg)
+			return iwc, cmd
+
+		case StateProjectName:
+			switch msg.String() {
+			case "enter":
+				if strings.TrimSpace(iwc.projectInput.Value()) != "" {
+					iwc.ProjectName = strings.TrimSpace(iwc.projectInput.Value())
+					iwc.state = StateAuthorName
+					iwc.authorInput.Focus()
+					return iwc, textinput.Blink
+				}
+			case "ctrl+c", "esc":
+				return iwc, tea.Quit
+			}
+			iwc.projectInput, cmd = iwc.projectInput.Update(msg)
 			return iwc, cmd
 
 		case StateAuthorName:
@@ -213,26 +204,19 @@ func (iwc *InitWizardComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "enter":
 				iwc.GitHubUser = strings.TrimSpace(iwc.githubInput.Value())
-				iwc.state = StateConfirmation
+				iwc.state = StateComplete
 				iwc.githubInput.Blur()
-				return iwc, nil
+
+				// Immediately create the project
+				if iwc.OnComplete != nil {
+					iwc.OnComplete(iwc.ProjectName, iwc.TemplateLang, iwc.AuthorName, iwc.GitHubUser, iwc.TargetDir)
+				}
+				return iwc, tea.Quit
 			case "ctrl+c", "esc":
 				return iwc, tea.Quit
 			}
 			iwc.githubInput, cmd = iwc.githubInput.Update(msg)
 			return iwc, cmd
-
-		case StateConfirmation:
-			switch msg.String() {
-			case "enter", "y", "Y":
-				iwc.state = StateComplete
-				if iwc.OnComplete != nil {
-					iwc.OnComplete(iwc.ProjectName, iwc.TemplateLang, iwc.AuthorName, iwc.GitHubUser, iwc.TargetDir)
-				}
-				return iwc, tea.Quit
-			case "n", "N", "ctrl+c", "esc":
-				return iwc, tea.Quit
-			}
 
 		case StateComplete:
 			return iwc, tea.Quit
@@ -244,16 +228,14 @@ func (iwc *InitWizardComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (iwc *InitWizardComponent) View() string {
 	switch iwc.state {
-	case StateProjectName:
-		return iwc.renderProjectNameInput()
 	case StateTemplateSelection:
 		return iwc.renderTemplateSelection()
+	case StateProjectName:
+		return iwc.renderProjectNameInput()
 	case StateAuthorName:
 		return iwc.renderAuthorInput()
 	case StateGitHubUser:
 		return iwc.renderGitHubInput()
-	case StateConfirmation:
-		return iwc.renderConfirmation()
 	case StateComplete:
 		return iwc.renderComplete()
 	}
@@ -294,46 +276,119 @@ func (iwc *InitWizardComponent) renderProjectNameInput() string {
 }
 
 func (iwc *InitWizardComponent) renderTemplateSelection() string {
-	title := lipgloss.NewStyle().
+	// Left panel: Template list
+	listTitle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#902f17")).
 		Bold(true).
-		Render(fmt.Sprintf("🎭 Project: %s", iwc.ProjectName))
+		Render("🎭 Select Template")
 
-	subtitle := lipgloss.NewStyle().
+	listSubtitle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#564f41")).
 		Render("Choose a template for your project")
 
-	// Show features of selected template
-	var features string
-	if selected := iwc.templateList.SelectedItem(); selected != nil {
-		if item, ok := selected.(templateItem); ok {
-			featureList := make([]string, len(item.features))
-			for i, feature := range item.features {
-				featureList[i] = fmt.Sprintf("  • %s", feature)
-			}
-			features = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#564f41")).
-				Render(strings.Join(featureList, "\n"))
-		}
-	}
-
-	instructions := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666")).
-		Render("↑/↓ to navigate • Enter to select • Ctrl+C to cancel")
-
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		title,
+	leftPanel := lipgloss.JoinVertical(lipgloss.Left,
+		listTitle,
 		"",
-		subtitle,
+		listSubtitle,
 		"",
 		iwc.templateList.View(),
-		"",
-		features,
+	)
+
+	// Right panel: Template details
+	var rightPanel string
+	if selected := iwc.templateList.SelectedItem(); selected != nil {
+		if item, ok := selected.(templateItem); ok {
+			detailTitle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#902f17")).
+				Bold(true).
+				Render(fmt.Sprintf("%s Template", item.language))
+
+			description := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#564f41")).
+				Render(item.description)
+
+			buildSystem := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#666")).
+				Render(fmt.Sprintf("Build System: %s", item.buildSystem))
+
+			featuresTitle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#902f17")).
+				Bold(true).
+				Render("Features:")
+
+			featureList := make([]string, len(item.features))
+			for i, feature := range item.features {
+				featureList[i] = fmt.Sprintf("• %s", feature)
+			}
+			features := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#564f41")).
+				Render(strings.Join(featureList, "\n"))
+
+			rightPanel = lipgloss.JoinVertical(lipgloss.Left,
+				detailTitle,
+				"",
+				description,
+				"",
+				buildSystem,
+				"",
+				featuresTitle,
+				"",
+				features,
+			)
+		}
+	} else {
+		rightPanel = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#666")).
+			Render("Select a template to see details")
+	}
+
+	// Calculate panel dimensions (matching main TUI's getPanelWidth logic)
+	totalWidth := iwc.width
+	if totalWidth == 0 {
+		totalWidth = 90 // Default width
+	}
+
+	// Replicate the main TUI's panel width calculation exactly
+	containerWidth := totalWidth - 10  // Container width with margin
+	layoutWidth := containerWidth - 2  // Available width inside container
+	basePanelWidth := (layoutWidth - 1) / 2  // Each panel gets half minus gap
+	panelWidth := basePanelWidth + 3  // Add extra space (same as main TUI)
+
+	// Ensure minimum width
+	if panelWidth < 15 {
+		panelWidth = 15
+	}
+
+	// Update template list dimensions
+	iwc.templateList.SetWidth(panelWidth - 2)  // Account for panel padding
+	iwc.templateList.SetHeight(12)
+
+	// Style the panels (make both have borders for consistent appearance)
+	leftStyled := LeftPanelStyle.
+		Width(panelWidth).
+		Height(15).
+		Render(leftPanel)
+
+	// Use LeftPanelStyle for right panel too to make them visually equal
+	rightStyled := LeftPanelStyle.
+		Width(panelWidth).
+		Height(15).
+		Render(rightPanel)
+
+	// Instructions at the bottom
+	instructions := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#666")).
+		Align(lipgloss.Center).
+		Render("↑/↓ to navigate • Enter to select • Ctrl+C to cancel")
+
+	// Combine panels and instructions
+	twoPanelLayout := lipgloss.JoinHorizontal(lipgloss.Top, leftStyled, " ", rightStyled)
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		twoPanelLayout,
 		"",
 		instructions,
 	)
-
-	return content
 }
 
 func (iwc *InitWizardComponent) renderAuthorInput() string {

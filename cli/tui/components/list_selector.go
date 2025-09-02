@@ -16,6 +16,15 @@ type ListItem struct {
 }
 
 // Implement the list.Item interface
+// NewListItem creates a new ListItem (public constructor for testing)
+func NewListItem(title, description, value string) ListItem {
+	return ListItem{
+		title:       title,
+		description: description,
+		value:       value,
+	}
+}
+
 func (i ListItem) FilterValue() string { return i.title }
 func (i ListItem) Title() string       { return i.title }
 func (i ListItem) Description() string { return i.description }
@@ -44,16 +53,28 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.
 		Foreground(lipgloss.Color("#564f41"))
 
-	// Create the list model
+	// Ensure minimum height for list content
+	if height < 6 {
+		height = 6
+	}
+
+	// Create the list model with full height utilization
 	listModel := list.New(listItems, delegate, width, height)
 	listModel.Title = title
 	listModel.SetShowStatusBar(false)
+	listModel.SetShowPagination(true) // Enable pagination for longer lists
 	listModel.SetFilteringEnabled(true) // Enable for keyboard navigation
+
+	// Configure styles
 	listModel.Styles.Title = listModel.Styles.Title.
 		Foreground(lipgloss.Color("#902f17")).
 		Background(lipgloss.Color("")).
 		Bold(true).
 		Padding(0, 0, 1, 0)
+
+	// Set pagination style to be less intrusive
+	listModel.Styles.PaginationStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#564f41"))
 
 	return &ListSelectorComponent{
 		list: listModel,
@@ -62,6 +83,10 @@ func NewListSelector(title string, items []ListItem, width, height int) *ListSel
 
 // SetSize updates the list dimensions
 func (ls *ListSelectorComponent) SetSize(width, height int) {
+	// Ensure minimum height for usability
+	if height < 6 {
+		height = 6
+	}
 	ls.list.SetSize(width, height)
 }
 

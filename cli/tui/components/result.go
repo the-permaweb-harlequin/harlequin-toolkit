@@ -426,11 +426,27 @@ func formatUploadDetails(result interface{}, success bool) string {
 
 	if success {
 		details += "✅ Upload completed successfully!\n\n"
-		details += "🌐 Module uploaded to Arweave:\n"
-		details += "• WASM binary analyzed and tagged\n"
-		details += "• Metadata extracted and included\n"
-		details += "• Transaction submitted to network\n"
-		details += "• Module ready for deployment"
+
+		// Try to extract data item ID from the result
+		dataItemID := ""
+		if dataItemField := v.FieldByName("DataItemID"); dataItemField.IsValid() {
+			dataItemID = dataItemField.String()
+		}
+
+		if dataItemID != "" {
+			details += "🌐 Module uploaded to Arweave:\n"
+			details += fmt.Sprintf("• Transaction ID: %s\n", dataItemID)
+			details += fmt.Sprintf("• Arweave URL: https://arweave.net/%s\n", dataItemID)
+			details += "• WASM binary analyzed and tagged\n"
+			details += "• Metadata extracted and included\n"
+			details += "• Module ready for deployment"
+		} else {
+			details += "🌐 Module uploaded to Arweave:\n"
+			details += "• WASM binary analyzed and tagged\n"
+			details += "• Metadata extracted and included\n"
+			details += "• Transaction submitted to network\n"
+			details += "• Module ready for deployment"
+		}
 	} else {
 		details += "❌ Upload failed\n\n"
 

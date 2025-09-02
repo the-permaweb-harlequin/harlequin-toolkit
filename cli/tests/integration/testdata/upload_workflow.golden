@@ -1,0 +1,10 @@
+
+╭─ Upload Configuration ───────────────────────────────╮
+│                                                     │
+│ WASM File: /tmp/test/process.wasm                         │
+│ Config File: .harlequin.yaml                        │
+│ Wallet File: wallet.json                            │
+│ Version: 1.0.0                                      │
+│ Mode: Dry Run                                       │
+│                                                     │
+╰─────────────────────────────────────────────────────╯

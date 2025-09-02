@@ -1,0 +1,25 @@
+{
+  "name": "r",
+  "version": "1.0.0",
+  "description": "AO process built with Go and WebAssembly",
+  "scripts": {
+    "build": "make build",
+    "build:debug": "make build-debug",
+    "test": "make test",
+    "dev": "make dev",
+    "clean": "make clean"
+  },
+  "keywords": [
+    "ao",
+    "arweave",
+    "go",
+    "golang",
+    "webassembly",
+    "process"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@permaweb/ao-loader": "^0.0.49"
+  }
+}

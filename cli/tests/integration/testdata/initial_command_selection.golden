@@ -1,0 +1,33 @@
+     ╭──────────────────────────────────────────────────────────────────────────────────────────╮
+     │                                       Select Command                                     │
+     │                                                                                          │
+     │ ╭────────────────────────────────────────────╮  ╭─────────────────────────────────────╮  │
+     │ │   Welcome to Harlequin                     │  │ Getting Started                     │  │
+     │ │                                            │  │                                     │  │
+     │ │                                            │  │ Create a new AO process project     │  │
+     │ │ │ Initialize Project                       │  │ from                                │  │
+     │ │ │ Create a new AO process project from     │  │ template.                           │  │
+     │ │ temp…                                      │  │                                     │  │
+     │ │                                            │  │ This will guide you through:        │  │
+     │ │   Build Project                            │  │ • Project name selection            │  │
+     │ │   Build an AOS project with interactive    │  │ • Template language choice (Lua, C, │  │
+     │ │ con…                                       │  │ Rust, AssemblyScript)               │  │
+     │ │                                            │  │ • Author and GitHub information     │  │
+     │ │   Upload Module                            │  │ • Project directory setup           │  │
+     │ │   Upload built WASM modules to Arweave     │  │                                     │  │
+     │ │                                            │  │ Available templates:                │  │
+     │ │                                            │  │ • Lua - With C trampoline and       │  │
+     │ │                                            │  │ LuaRocks                            │  │
+     │ │ ••                                         │  │ • C - With Conan and CMake          │  │
+     │ │                                            │  │ • Rust - With Cargo and wasm-pack   │  │
+     │ │   ↑/k up • ↓/j down • / filter • q quit …  │  │ • AssemblyScript - With custom JSON │  │
+     │ ╰────────────────────────────────────────────╯  │ handling                            │  │
+     │                                                 │                                     │  │
+     │                                                 │ Each template includes              │  │
+     │                                                 │ comprehensive                       │  │
+     │                                                 │ documentation, testing, and build   │  │
+     │                                                 │ systems.                            │  │
+     │                                                 ╰─────────────────────────────────────╯  │
+     │                           • ↑/↓ Navigate • Enter Select • q Quit                         │
+     │                                                                                          │
+     ╰──────────────────────────────────────────────────────────────────────────────────────────╯

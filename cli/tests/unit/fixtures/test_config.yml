@@ -1,0 +1,13 @@
+compute_limit: '9000000000000'
+maximum_memory: 524288
+module_format: 'wasm32-unknown-unknown'
+aos_git_hash: 'test-hash-123'
+data_protocol: 'ao'
+variant: 'aos'
+type: 'process'
+input_encoding: 'JSON-1'
+output_encoding: 'JSON-1'
+content_type: 'application/json'
+app_name: 'Test-App'
+app_version: '1.0.0'
+author: 'Test Author'

@@ -1,8 +1,12 @@
 package cmd
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,61 +18,25 @@ import (
 
 // Available template languages
 var availableTemplates = []string{
-	"lua",
-	"c",
-	"rust",
 	"assemblyscript",
+	"go",
 }
 
 // Template metadata
 type TemplateInfo struct {
-	Name        string
-	Description string
-	Language    string
-	BuildSystem string
-	Features    []string
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Language     string   `json:"language"`
+	BuildSystem  string   `json:"buildSystem,omitempty"`
+	Features     []string `json:"features,omitempty"`
+	Instructions []string `json:"instructions,omitempty"`
+	Version      string   `json:"version,omitempty"`
+	Created      string   `json:"created,omitempty"`
+	Tarball      string   `json:"tarball,omitempty"`
+	Size         int      `json:"size,omitempty"`
 }
 
 var templateInfoMap = map[string]TemplateInfo{
-	"lua": {
-		Name:        "Lua AO Process",
-		Description: "AO Process with Lua and C trampoline integration",
-		Language:    "Lua",
-		BuildSystem: "CMake + LuaRocks",
-		Features: []string{
-			"C trampoline with embedded Lua interpreter",
-			"LuaRocks package management",
-			"WebAssembly compilation",
-			"Modular architecture",
-			"Comprehensive testing with Busted",
-		},
-	},
-	"c": {
-		Name:        "C AO Process",
-		Description: "High-performance AO Process in C with Conan",
-		Language:    "C",
-		BuildSystem: "CMake + Conan",
-		Features: []string{
-			"Conan package management",
-			"Google Test integration",
-			"Emscripten WebAssembly compilation",
-			"Memory-efficient implementation",
-			"Docker build support",
-		},
-	},
-	"rust": {
-		Name:        "Rust AO Process",
-		Description: "Safe and fast AO Process with Rust and wasm-pack",
-		Language:    "Rust",
-		BuildSystem: "Cargo + wasm-pack",
-		Features: []string{
-			"Thread-safe state management",
-			"Serde JSON serialization",
-			"wasm-bindgen WebAssembly bindings",
-			"Comprehensive error handling",
-			"Size-optimized builds",
-		},
-	},
 	"assemblyscript": {
 		Name:        "AssemblyScript AO Process",
 		Description: "TypeScript-like AO Process compiled to WebAssembly",
@@ -80,6 +48,19 @@ var templateInfoMap = map[string]TemplateInfo{
 			"Memory-safe operations",
 			"Node.js testing framework",
 			"Size optimization",
+		},
+	},
+	"go": {
+		Name:        "Go AO Process",
+		Description: "High-performance AO Process in Go compiled to WebAssembly",
+		Language:    "Go",
+		BuildSystem: "Go + TinyGo",
+		Features: []string{
+			"Type-safe Go programming",
+			"Goroutines and channels",
+			"Standard library support",
+			"TinyGo WebAssembly compilation",
+			"Efficient memory usage",
 		},
 	},
 }
@@ -106,10 +87,18 @@ func HandleInitCommand(ctx context.Context, args []string) {
 	}
 
 	// Check if first argument is a language (non-interactive mode)
-	if len(args) > 0 && isValidTemplate(args[0]) {
-		templateLang = args[0]
-		interactive = false
-		args = args[1:] // Remove language from args for further parsing
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		// First argument looks like a template name
+		if isValidTemplate(args[0]) {
+			templateLang = args[0]
+			interactive = false
+			args = args[1:] // Remove language from args for further parsing
+		} else {
+			// Invalid template name provided
+			fmt.Printf("Error: Invalid template '%s'. Available templates: %s\n", args[0], strings.Join(availableTemplates, ", "))
+			PrintInitUsage()
+			os.Exit(1)
+		}
 	}
 
 	// Parse command line arguments
@@ -176,7 +165,7 @@ func HandleInitCommand(ctx context.Context, args []string) {
 			os.Exit(1)
 		}
 
-		err := initializeProject(projectName, templateLang, targetDir, authorName, githubUser)
+		err := InitializeProject(projectName, templateLang, targetDir, authorName, githubUser)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
@@ -206,7 +195,7 @@ func runInteractiveInit(ctx context.Context, projectName, targetDir, authorName,
 	// Set up completion callback
 	var resultErr error
 	wizard.OnComplete = func(pName, tLang, aName, gUser, tDir string) {
-		resultErr = initializeProject(pName, tLang, tDir, aName, gUser)
+		resultErr = InitializeProject(pName, tLang, tDir, aName, gUser)
 	}
 
 	// Run the TUI
@@ -218,8 +207,8 @@ func runInteractiveInit(ctx context.Context, projectName, targetDir, authorName,
 	return resultErr
 }
 
-// initializeProject creates a new project from the specified template
-func initializeProject(projectName, templateLang, targetDir, authorName, githubUser string) error {
+// InitializeProject creates a new project from the specified template
+func InitializeProject(projectName, templateLang, targetDir, authorName, githubUser string) error {
 	debug.Printf("Initializing project: %s with template: %s", projectName, templateLang)
 
 	// Validate template language
@@ -237,31 +226,18 @@ func initializeProject(projectName, templateLang, targetDir, authorName, githubU
 		return fmt.Errorf("directory %s already exists", targetDir)
 	}
 
-	// Get template source directory
-	execPath, err := os.Executable()
+	// Load embedded templates
+	registry, err := LoadEmbeddedTemplates()
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+		return fmt.Errorf("failed to load embedded templates: %w", err)
 	}
 
-	templateSrcDir := filepath.Join(filepath.Dir(execPath), "templates", templateLang)
-
-	// Try relative path if absolute doesn't exist
-	if _, err := os.Stat(templateSrcDir); os.IsNotExist(err) {
-		// Try relative to current working directory
-		wd, _ := os.Getwd()
-		templateSrcDir = filepath.Join(wd, "templates", templateLang)
-
-		if _, err := os.Stat(templateSrcDir); os.IsNotExist(err) {
-			// Try relative to CLI directory
-			templateSrcDir = filepath.Join("cli", "templates", templateLang)
-
-			if _, err := os.Stat(templateSrcDir); os.IsNotExist(err) {
-				return fmt.Errorf("template directory not found for language: %s", templateLang)
-			}
-		}
+	template, exists := registry.Templates[templateLang]
+	if !exists {
+		return fmt.Errorf("template not found: %s. Available templates: %s", templateLang, strings.Join(availableTemplates, ", "))
 	}
 
-	fmt.Printf("Creating project '%s' from %s template...\n", projectName, templateLang)
+	fmt.Printf("Creating project '%s' from %s template...\n", projectName, template.Name)
 
 	// Create target directory
 	err = os.MkdirAll(targetDir, 0755)
@@ -269,61 +245,21 @@ func initializeProject(projectName, templateLang, targetDir, authorName, githubU
 		return fmt.Errorf("failed to create target directory: %w", err)
 	}
 
-	// Copy template files
-	err = copyTemplate(templateSrcDir, targetDir, projectName, authorName, githubUser)
+	// Extract embedded template
+	err = extractEmbeddedTemplate(templateLang, targetDir, projectName, authorName, githubUser)
 	if err != nil {
 		// Clean up on error
 		os.RemoveAll(targetDir)
-		return fmt.Errorf("failed to copy template: %w", err)
+		return fmt.Errorf("failed to extract embedded template: %w", err)
 	}
 
-	// Display success message and next steps
-	printSuccessMessage(projectName, templateLang, targetDir)
+	// Display success message with embedded template info
+	printEmbeddedSuccessMessage(projectName, template, targetDir)
 
 	return nil
 }
 
-// copyTemplate copies template files and performs variable substitution
-func copyTemplate(srcDir, destDir, projectName, authorName, githubUser string) error {
-	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
 
-		// Calculate relative path
-		relPath, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
-		}
-
-		destPath := filepath.Join(destDir, relPath)
-
-		// Substitute variables in file names
-		destPath = substituteVariables(destPath, projectName, authorName, githubUser)
-
-		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
-		}
-
-		// Copy and process file
-		return copyAndProcessFile(path, destPath, projectName, authorName, githubUser)
-	})
-}
-
-// copyAndProcessFile copies a file and performs variable substitution
-func copyAndProcessFile(srcPath, destPath, projectName, authorName, githubUser string) error {
-	// Read source file
-	content, err := os.ReadFile(srcPath)
-	if err != nil {
-		return err
-	}
-
-	// Perform variable substitution
-	processedContent := substituteVariables(string(content), projectName, authorName, githubUser)
-
-	// Write to destination
-	return os.WriteFile(destPath, []byte(processedContent), 0644)
-}
 
 // substituteVariables replaces template variables with actual values
 func substituteVariables(content, projectName, authorName, githubUser string) string {
@@ -359,55 +295,7 @@ func isValidTemplate(templateLang string) bool {
 	return false
 }
 
-// printSuccessMessage displays success message and next steps
-func printSuccessMessage(projectName, templateLang, targetDir string) {
-	info := templateInfoMap[templateLang]
 
-	fmt.Printf("\n🎉 Successfully created %s project '%s'!\n\n", info.Language, projectName)
-
-	fmt.Println("📁 Project structure:")
-	fmt.Printf("   %s/\n", targetDir)
-
-	fmt.Println("\n🚀 Next steps:")
-	fmt.Printf("   cd %s\n", targetDir)
-
-	switch templateLang {
-	case "lua":
-		fmt.Println("   npm run setup          # Install LuaRocks dependencies")
-		fmt.Println("   npm run build          # Build with CMake")
-		fmt.Println("   npm run build:wasm     # Build WebAssembly with Emscripten")
-		fmt.Println("   npm test               # Run Lua tests")
-		fmt.Println("   npm run test:trampoline # Test C trampoline")
-	case "c":
-		fmt.Println("   npm run setup          # Install Conan dependencies")
-		fmt.Println("   npm run build:cmake    # Build with CMake")
-		fmt.Println("   npm test               # Run tests")
-		fmt.Println("   npm run docker:build   # Build in Docker")
-	case "rust":
-		fmt.Println("   npm run setup          # Install Rust toolchain")
-		fmt.Println("   npm run build          # Build native binary")
-		fmt.Println("   npm run build:wasm     # Build WebAssembly")
-		fmt.Println("   npm test               # Run tests")
-		fmt.Println("   npm run run            # Test locally")
-	case "assemblyscript":
-		fmt.Println("   npm install            # Install dependencies")
-		fmt.Println("   npm run build          # Build WebAssembly")
-		fmt.Println("   npm test               # Run tests")
-		fmt.Println("   npm run optimize       # Optimize binary")
-	}
-
-	fmt.Println("\n   harlequin build         # Build with Harlequin CLI")
-	fmt.Println("   harlequin               # Launch interactive TUI")
-
-	fmt.Printf("\n📖 Features included:\n")
-	for _, feature := range info.Features {
-		fmt.Printf("   • %s\n", feature)
-	}
-
-	fmt.Printf("\n📚 Documentation: See README.md in the project directory\n")
-	fmt.Printf("🛠️  Build System: %s\n", info.BuildSystem)
-	fmt.Printf("🎭 Happy coding with Harlequin!\n\n")
-}
 
 // PrintInitUsage prints usage information for the init command
 func PrintInitUsage() {
@@ -418,7 +306,7 @@ func PrintInitUsage() {
 	fmt.Println("    harlequin init <LANGUAGE> [OPTIONS]  # Non-interactive mode")
 	fmt.Println()
 	fmt.Println("ARGUMENTS:")
-	fmt.Println("    LANGUAGE        Template language (lua, c, rust, assemblyscript)")
+	fmt.Println("    LANGUAGE        Template language (assemblyscript, go)")
 	fmt.Println()
 	fmt.Println("OPTIONS:")
 	fmt.Println("    -n, --name <NAME>           Project name (required in non-interactive mode)")
@@ -435,12 +323,12 @@ func PrintInitUsage() {
 	fmt.Println("    harlequin init")
 	fmt.Println()
 	fmt.Println("    # Non-interactive mode")
-	fmt.Println("    harlequin init lua --name my-ao-process --author \"John Doe\"")
-	fmt.Println("    harlequin init rust --name my-rust-process --github johndoe")
-	fmt.Println("    harlequin init c --name my-c-project --dir ./projects/my-c-project")
+	fmt.Println("    harlequin init assemblyscript --name my-ao-process --author \"John Doe\"")
+	fmt.Println("    harlequin init go --name my-go-process --github johndoe")
+	fmt.Println("    harlequin init assemblyscript --name my-as-project --dir ./projects/my-as-project")
 	fmt.Println()
 	fmt.Println("    # Alternative syntax (backward compatibility)")
-	fmt.Println("    harlequin init --template lua --name my-project")
+	fmt.Println("    harlequin init --template assemblyscript --name my-project")
 	fmt.Println()
 	fmt.Println("AVAILABLE TEMPLATES:")
 	for _, template := range availableTemplates {
@@ -448,4 +336,100 @@ func PrintInitUsage() {
 		fmt.Printf("    %-15s %s\n", template, info.Description)
 	}
 	fmt.Println()
+}
+
+// extractEmbeddedTemplate extracts the embedded template tarball to the target directory
+func extractEmbeddedTemplate(templateLang, targetDir, projectName, authorName, githubUser string) error {
+	// Read the embedded tarball
+	tarballPath := fmt.Sprintf("embedded_templates/%s.tar.gz", templateLang)
+	tarballData, err := embeddedTemplates.ReadFile(tarballPath)
+	if err != nil {
+		return fmt.Errorf("failed to read embedded template: %w", err)
+	}
+
+	// Create gzip reader
+	gzipReader, err := gzip.NewReader(bytes.NewReader(tarballData))
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzipReader.Close()
+
+	// Create tar reader
+	tarReader := tar.NewReader(gzipReader)
+
+	// Extract files
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %w", err)
+		}
+
+		// Skip special files
+		if strings.HasPrefix(header.Name, ".harlequin-template.json") ||
+		   strings.HasPrefix(header.Name, "install.sh") {
+			continue
+		}
+
+		// Create target path
+		targetPath := filepath.Join(targetDir, header.Name)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			// Create directory
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+		case tar.TypeReg:
+			// Create parent directory if it doesn't exist
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory: %w", err)
+			}
+
+			// Create file
+			file, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %w", targetPath, err)
+			}
+
+			// Copy file content and process template variables
+			content, err := io.ReadAll(tarReader)
+			if err != nil {
+				file.Close()
+				return fmt.Errorf("failed to read file content: %w", err)
+			}
+
+			// Replace template variables
+			processedContent := substituteVariables(string(content), projectName, authorName, githubUser)
+
+			if _, err := file.WriteString(processedContent); err != nil {
+				file.Close()
+				return fmt.Errorf("failed to write file content: %w", err)
+			}
+			file.Close()
+		}
+	}
+
+	return nil
+}
+
+// printEmbeddedSuccessMessage displays success message for embedded templates
+func printEmbeddedSuccessMessage(projectName string, template TemplateInfo, targetDir string) {
+	fmt.Printf("\n🎉 Successfully created '%s' from %s template!\n\n", projectName, template.Name)
+	fmt.Printf("📁 Project created in: %s\n\n", targetDir)
+
+	fmt.Printf("🚀 Next steps:\n")
+	fmt.Printf("   cd %s\n", targetDir)
+
+	for _, instruction := range template.Instructions {
+		fmt.Printf("   %s\n", instruction)
+	}
+
+	fmt.Printf("\n📖 Features included:\n")
+	fmt.Printf("   • %s\n", template.Description)
+
+	fmt.Printf("\n📚 Documentation: See README.md in the project directory\n")
+	fmt.Printf("🎭 Happy coding with Harlequin!\n\n")
 }

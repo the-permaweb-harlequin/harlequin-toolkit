@@ -39,6 +39,8 @@ func main() {
 	switch command {
 	case "init":
 		cmd.HandleInitCommand(ctx, os.Args[2:])
+	case "templates":
+		cmd.HandleTemplatesCommand(ctx, os.Args[2:])
 	case "build":
 		cmd.HandleBuildCommand(ctx, os.Args[2:])
 	case "upload-module":
@@ -79,6 +81,7 @@ func printUsage() {
 	fmt.Println()
 	fmt.Println("COMMANDS:")
 	fmt.Println("    init            Create a new AO process project from template")
+	fmt.Println("    templates       List and manage AO process templates")
 	fmt.Println("    build           Build AO process (launches TUI if no args)")
 	fmt.Println("    upload-module   Upload built modules to Arweave")
 	fmt.Println("    lua-utils       Lua utilities for bundling and processing")
@@ -93,6 +96,8 @@ func printUsage() {
 	fmt.Println("    harlequin                    # Launch interactive TUI")
 	fmt.Println("    harlequin init               # Create new project (interactive)")
 	fmt.Println("    harlequin init lua --name my-project")
+	fmt.Println("    harlequin templates list     # List available templates")
+	fmt.Println("    harlequin templates info go  # Show template details")
 	fmt.Println("    harlequin build --entrypoint main.lua")
 	fmt.Println("    harlequin upload-module      # Upload built module to Arweave")
 	fmt.Println("    harlequin versions --format table")

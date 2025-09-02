@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type ViewState int
 
 const (
 	ViewCommandSelection ViewState = iota
+	ViewInitWizard
 	ViewBuildTypeSelection
 	ViewEntrypointSelection
 	ViewOutputDirectory
@@ -97,6 +99,10 @@ type Model struct {
 	uploadGitHashInput    *components.TextInputComponent
 	uploadDryRunSelector  *components.ListSelectorComponent
 	uploadConfirmSelector *components.ListSelectorComponent
+	uploadProgress        *components.ProgressComponent // Separate progress for uploads
+
+	// Init wizard component
+	initWizard *components.InitWizardComponent
 
 	// Layout
 	width  int
@@ -163,14 +169,21 @@ type UploadFlow struct {
 
 // UploadResult holds the result of an upload operation
 type UploadResult struct {
-	Success bool
-	Error   error
-	Flow    *UploadFlow
+	Success    bool
+	Error      error
+	Flow       *UploadFlow
+	DataItemID string // Store the transaction/data item ID
+	Output     string // Store the complete output for parsing
 }
 
 // Messages for Bubble Tea
 type BuildStepStartMsg struct{ StepName string }
 type BuildStepCompleteMsg struct {
+	StepName string
+	Success  bool
+}
+type UploadStepStartMsg struct{ StepName string }
+type UploadStepCompleteMsg struct {
 	StepName string
 	Success  bool
 }
@@ -185,27 +198,29 @@ func NewModel(ctx context.Context) *Model {
 	keyMap := components.DefaultKeyMap()
 	helpModel := help.New()
 
-	// Create command selector
-	commandSelector := components.CreateCommandSelector(40, 10)
-
-	// Create build type selector
-	buildSelector := components.CreateBuildTypeSelector(40, 10)
-
-	// Initialize progress component
-	progress := components.NewProgressComponent(40, 10)
-
-	return &Model{
-		state:           ViewCommandSelection,
-		flow:            &BuildFlow{},
-		luaUtilsFlow:    &LuaUtilsFlow{},
-		uploadFlow:      &UploadFlow{},
-		ctx:             ctx,
-		keyMap:          keyMap,
-		help:            helpModel,
-		commandSelector: commandSelector,
-		buildSelector:   buildSelector,
-		progress:        progress,
+	// Create model with initial size
+	model := &Model{
+		state:        ViewCommandSelection,
+		flow:         &BuildFlow{},
+		luaUtilsFlow: &LuaUtilsFlow{},
+		uploadFlow:   &UploadFlow{},
+		ctx:          ctx,
+		keyMap:       keyMap,
+		help:         helpModel,
+		width:        80, // Default width
+		height:       24, // Default height
 	}
+
+	// Calculate initial panel dimensions
+	panelWidth := model.getPanelWidth() - 2
+	panelHeight := model.getPanelHeight()
+
+	// Create components with proper dimensions
+	model.commandSelector = components.CreateCommandSelector(panelWidth, panelHeight)
+	model.buildSelector = components.CreateBuildTypeSelector(panelWidth, panelHeight)
+	model.progress = components.NewProgressComponent(panelWidth, panelHeight)
+
+	return model
 }
 
 // Init implements the Bubble Tea model interface
@@ -243,6 +258,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state {
 		case ViewCommandSelection:
 			return m.updateCommandSelection(msg)
+		case ViewInitWizard:
+			return m.updateInitWizard(msg)
 		case ViewBuildTypeSelection:
 			return m.updateBuildTypeSelection(msg)
 		case ViewEntrypointSelection:
@@ -305,6 +322,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				{Name: msg.StepName, Status: status},
 			}
 			m.progress.UpdateSteps(steps)
+		}
+
+	case UploadStepStartMsg:
+		if m.uploadProgress != nil {
+			steps := []components.BuildStep{
+				{Name: msg.StepName, Status: components.StepRunning},
+			}
+			m.uploadProgress.UpdateSteps(steps)
+		}
+
+	case UploadStepCompleteMsg:
+		if m.uploadProgress != nil {
+			status := components.StepSuccess
+			if !msg.Success {
+				status = components.StepFailed
+			}
+			steps := []components.BuildStep{
+				{Name: msg.StepName, Status: status},
+			}
+			m.uploadProgress.UpdateSteps(steps)
 		}
 
 	case BuildCompleteMsg:
@@ -391,6 +428,8 @@ func (m *Model) View() string {
 	switch m.state {
 	case ViewCommandSelection:
 		content = m.viewCommandSelection()
+	case ViewInitWizard:
+		content = m.viewInitWizard()
 	case ViewBuildTypeSelection:
 		content = m.viewBuildTypeSelection()
 	case ViewEntrypointSelection:
@@ -480,6 +519,7 @@ func (m *Model) resizeComponents() {
 	// Use the same width calculation as createTwoPanelLayout
 	actualPanelWidth := basePanelWidth - 2 // Match the layout's panel width
 
+	// Resize all list components with the updated height
 	if m.commandSelector != nil {
 		m.commandSelector.SetSize(actualPanelWidth, panelHeight)
 	}
@@ -501,6 +541,29 @@ func (m *Model) resizeComponents() {
 	if m.configForm != nil {
 		m.configForm.SetSize(actualPanelWidth, panelHeight)
 	}
+
+	// Resize upload flow components
+	if m.uploadWasmSelector != nil {
+		m.uploadWasmSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.uploadConfigSelector != nil {
+		m.uploadConfigSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.uploadWalletSelector != nil {
+		m.uploadWalletSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.uploadDryRunSelector != nil {
+		m.uploadDryRunSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+
+	// Resize lua utils components
+	if m.luaUtilsSelector != nil {
+		m.luaUtilsSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+	if m.luaUtilsFileSelector != nil {
+		m.luaUtilsFileSelector.SetSize(actualPanelWidth, panelHeight)
+	}
+
 	// Note: progress and result components no longer need sizing since they use content methods
 }
 
@@ -525,11 +588,24 @@ func (m *Model) getPanelWidth() int {
 	return panelWidth
 }
 
-// getPanelHeight calculates the height for panels based on their content needs
+// getPanelHeight calculates the height for panels based on available space
 func (m *Model) getPanelHeight() int {
-	// Return a reasonable fixed height for panels - let them be compact
-	// The container will size itself naturally based on the content
-	return 12
+	// Use the full available content height minus some padding
+	contentHeight := m.getContentHeight()
+	// Reserve 4 lines for panel borders/padding/title
+	panelHeight := contentHeight - 4
+
+	// Ensure minimum height
+	if panelHeight < 8 {
+		panelHeight = 8
+	}
+
+	// Ensure maximum reasonable height
+	if panelHeight > 20 {
+		panelHeight = 20
+	}
+
+	return panelHeight
 }
 
 // getContentHeight calculates the available height for content area (excluding header and footer)
@@ -553,6 +629,8 @@ func (m *Model) getViewTitle() string {
 	switch m.state {
 	case ViewCommandSelection:
 		return "Select Command"
+	case ViewInitWizard:
+		return "Initialize New Project"
 	case ViewBuildTypeSelection:
 		return "Select Build Configuration"
 	case ViewEntrypointSelection:
@@ -834,7 +912,12 @@ func (m *Model) viewBuildResult() string {
 func (m *Model) createTwoPanelLayout(leftPanel, rightPanel string) string {
 	panelWidth := m.getPanelWidth() - 2 // Reduce width by 1 to prevent overflow
 	contentHeight := m.getContentHeight()
-	panelHeight := contentHeight - 2 // Make each panel 1 line smaller
+	panelHeight := contentHeight - 4 // Reserve space for borders and padding
+
+	// Ensure minimum panel height
+	if panelHeight < 8 {
+		panelHeight = 8
+	}
 
 	// Apply left panel style with border and calculated width (left-aligned content)
 	leftStyled := components.LeftPanelStyle.
@@ -849,7 +932,7 @@ func (m *Model) createTwoPanelLayout(leftPanel, rightPanel string) string {
 		Render(rightPanel)
 
 	// Fixed 1-character gap
-	spacer := "" // Exactly 1 space
+	spacer := " " // Exactly 1 space
 
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
@@ -978,9 +1061,9 @@ func (m *Model) updateCommandSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if selected := m.commandSelector.GetSelected(); selected != nil {
 			switch selected.Value() {
 			case "init":
-				// Launch init command in non-interactive mode for now
-				// TODO: Implement full TUI for init
-				return m, tea.Quit
+				// Go to init wizard
+				m.state = ViewInitWizard
+				return m, nil
 			case "build":
 				// Go to build type selection
 				m.state = ViewBuildTypeSelection
@@ -1179,6 +1262,8 @@ func (m *Model) updateBuildResult(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) handleBack() (tea.Model, tea.Cmd) {
 	switch m.state {
+	case ViewInitWizard:
+		m.state = ViewCommandSelection
 	case ViewBuildTypeSelection:
 		m.state = ViewCommandSelection
 	case ViewEntrypointSelection:
@@ -1991,12 +2076,18 @@ func (m *Model) updateUploadConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if key.Matches(msg, m.keyMap.Enter) {
 			if selected := m.uploadConfirmSelector.GetSelected(); selected != nil {
 								switch selected.Value() {
-				case "confirm":
-					m.state = ViewUploadRunning
-					go m.runUpload() // Run upload in background
-					return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
-						return TickMsg{}
-					})
+						case "confirm":
+			m.state = ViewUploadRunning
+
+			// Initialize upload progress component
+			panelWidth := m.getPanelWidth() - 2
+			panelHeight := m.getPanelHeight()
+			m.uploadProgress = components.NewProgressComponent(panelWidth, panelHeight)
+
+			go m.runUpload() // Run upload in background
+			return m, tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+				return TickMsg{}
+			})
 				case "insufficient":
 					// Do nothing - insufficient balance prevents upload
 					// User can only cancel to go back and fix the issue
@@ -2035,24 +2126,45 @@ func (m *Model) runUpload() {
 	debug.Printf("Starting upload process")
 	debug.Printf("Upload config: %+v", m.uploadFlow)
 
+	// Send upload step start messages
+	if m.program != nil {
+		m.program.Send(UploadStepStartMsg{StepName: "Analyzing WASM metadata"})
+	}
+
 	var uploadErr error
+	var output string
+	var dataItemID string
 	success := true
 
-	// TODO: Execute the actual upload using the upload command
-	// For now, simulate the upload process
-	uploadErr = m.executeRealUpload()
+	// Execute the actual upload using the upload command
+	output, uploadErr = m.executeRealUpload()
 	if uploadErr != nil {
 		debug.Printf("Upload failed: %v", uploadErr)
 		success = false
+		if m.program != nil {
+			m.program.Send(UploadStepCompleteMsg{StepName: "Upload failed", Success: false})
+		}
 	} else {
 		debug.Printf("Upload completed successfully")
+		dataItemID = m.extractDataItemID(output)
+		if m.program != nil {
+			m.program.Send(UploadStepCompleteMsg{StepName: "Analyzing WASM metadata", Success: true})
+			m.program.Send(UploadStepStartMsg{StepName: "Creating upload tags"})
+			m.program.Send(UploadStepCompleteMsg{StepName: "Creating upload tags", Success: true})
+			m.program.Send(UploadStepStartMsg{StepName: "Signing data item"})
+			m.program.Send(UploadStepCompleteMsg{StepName: "Signing data item", Success: true})
+			m.program.Send(UploadStepStartMsg{StepName: "Uploading to Arweave"})
+			m.program.Send(UploadStepCompleteMsg{StepName: "Uploading to Arweave", Success: true})
+		}
 	}
 
 	// Send final result
 	result := &UploadResult{
-		Success: success,
-		Error:   uploadErr,
-		Flow:    m.uploadFlow,
+		Success:    success,
+		Error:      uploadErr,
+		Flow:       m.uploadFlow,
+		DataItemID: dataItemID,
+		Output:     output,
 	}
 
 	if m.program != nil {
@@ -2061,7 +2173,7 @@ func (m *Model) runUpload() {
 }
 
 // executeRealUpload runs the actual upload process
-func (m *Model) executeRealUpload() error {
+func (m *Model) executeRealUpload() (string, error) {
 	debug.Printf("Executing real upload for WASM: %s", m.uploadFlow.WasmFile)
 
 	// Build the arguments for calling the harlequin binary directly
@@ -2090,7 +2202,7 @@ func (m *Model) executeRealUpload() error {
 	// Find the harlequin binary path
 	execPath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("failed to get executable path: %w", err)
+		return "", fmt.Errorf("failed to get executable path: %w", err)
 	}
 
 	// Call the harlequin binary with upload-module command
@@ -2100,10 +2212,36 @@ func (m *Model) executeRealUpload() error {
 	debug.Printf("Upload command output: %s", string(output))
 	if err != nil {
 		debug.Printf("Upload command failed: %v", err)
-		return fmt.Errorf("upload failed: %w", err)
+		return string(output), fmt.Errorf("upload failed: %w", err)
 	}
 
-	return nil
+	return string(output), nil
+}
+
+// extractDataItemID extracts the data item ID from upload output
+func (m *Model) extractDataItemID(output string) string {
+	// Look for patterns like "Transaction ID: abc123" or "• Transaction ID: abc123"
+	// or "🎉 Upload completed! Transaction ID: abc123"
+
+	// Try to find transaction ID patterns
+	patterns := []string{
+		`Transaction ID: ([a-zA-Z0-9_-]+)`,
+		`transaction ID: ([a-zA-Z0-9_-]+)`,
+		`ID: ([a-zA-Z0-9_-]+)`,
+		`id: ([a-zA-Z0-9_-]+)`,
+	}
+
+	for _, pattern := range patterns {
+		re := regexp.MustCompile(pattern)
+		matches := re.FindStringSubmatch(output)
+		if len(matches) > 1 && len(matches[1]) > 10 { // Transaction IDs are typically longer
+			debug.Printf("Extracted data item ID: %s", matches[1])
+			return matches[1]
+		}
+	}
+
+	debug.Printf("Could not extract data item ID from output")
+	return ""
 }
 
 // checkBalanceAndCost checks wallet balance and estimates upload cost
@@ -2161,8 +2299,25 @@ func (m *Model) checkBalanceAndCost() error {
 	// Estimate upload cost
 	unauthenticatedClient := turbo.Unauthenticated(nil)
 	fileSize := int64(len(wasmData))
+	debug.Printf("Requesting upload costs for file size: %d bytes", fileSize)
+
 	uploadCosts, err := unauthenticatedClient.GetUploadCosts(m.ctx, []int64{fileSize})
 	if err != nil {
+		debug.Printf("GetUploadCosts API error: %v", err)
+
+		// Check if it's a JSON parsing error - this is a known issue with the API
+		if strings.Contains(err.Error(), "json: cannot unmarshal object into Go value of type []types.UploadCost") {
+			debug.Printf("Known issue: API returned object but expected array - continuing without cost estimate")
+
+			// Set a default estimated cost warning and continue
+			m.uploadFlow.Balance = balance.WinC
+			m.uploadFlow.EstimatedCost = "unknown"
+			m.uploadFlow.BalanceCheckError = "Unable to estimate upload cost due to API format issue. Upload may still proceed."
+
+			debug.Printf("Balance: %s, Estimated cost: unknown (API issue)", balance.WinC)
+			return nil
+		}
+
 		return fmt.Errorf("failed to estimate upload cost: %w", err)
 	}
 
@@ -2183,6 +2338,11 @@ func (m *Model) checkBalanceAndCost() error {
 func (m *Model) checkInsufficientBalance() error {
 	if m.uploadFlow.Balance == "" || m.uploadFlow.EstimatedCost == "" {
 		return nil // No balance info available
+	}
+
+	// If cost estimate is unknown, we can't determine sufficiency - assume sufficient
+	if m.uploadFlow.EstimatedCost == "unknown" {
+		return nil
 	}
 
 	// Parse balance and cost as integers for comparison
@@ -2211,6 +2371,11 @@ func winstonToCredits(winston string) string {
 		return "0"
 	}
 
+	// Handle special case for unknown/unavailable estimates
+	if winston == "unknown" {
+		return "unknown"
+	}
+
 	// Convert string to big.Int for precision
 	winstonBig := new(big.Int)
 	winstonBig, ok := winstonBig.SetString(winston, 10)
@@ -2231,6 +2396,9 @@ func formatCreditsDisplay(winston string) string {
 	credits := winstonToCredits(winston)
 	if credits == "0" {
 		return "0 Credits"
+	}
+	if credits == "unknown" {
+		return "Unable to estimate"
 	}
 	return credits + " Credits"
 }
@@ -2546,8 +2714,8 @@ func (m *Model) viewUploadConfirmation() string {
 // viewUploadRunning renders the upload progress view
 func (m *Model) viewUploadRunning() string {
 	leftPanel := ""
-	if m.progress != nil {
-		leftPanel = m.progress.ViewContent()
+	if m.uploadProgress != nil {
+		leftPanel = m.uploadProgress.ViewContent()
 	}
 
 	rightPanel := components.CreateDescriptionPanel(
@@ -2626,8 +2794,8 @@ Status: %s`,
 			formatCreditsDisplay(m.uploadFlow.EstimatedCost),
 			balanceStatus)
 
-		if !isBalanceSufficient {
-			// Parse balance and cost to show shortfall
+		if !isBalanceSufficient && m.uploadFlow.EstimatedCost != "unknown" {
+			// Parse balance and cost to show shortfall (only if cost is not unknown)
 			if balanceInt, err1 := strconv.ParseInt(m.uploadFlow.Balance, 10, 64); err1 == nil {
 				if costInt, err2 := strconv.ParseInt(m.uploadFlow.EstimatedCost, 10, 64); err2 == nil {
 					shortfall := costInt - balanceInt
@@ -2645,6 +2813,86 @@ Shortfall: %s`, formatCreditsDisplay(shortfallStr))
 Ready to proceed with %s.`, mode)
 
 	return preview
+}
+
+// updateInitWizard handles init wizard updates
+func (m *Model) updateInitWizard(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Initialize init wizard if needed
+	if m.initWizard == nil {
+		m.initWizard = components.NewInitWizardComponent()
+
+		// Set up completion callback
+		m.initWizard.OnComplete = func(projectName, templateLang, authorName, githubUser, targetDir string) {
+			// Create the project using the CLI command to avoid import cycle
+			args := []string{"init", templateLang, "--name", projectName}
+			if authorName != "" {
+				args = append(args, "--author", authorName)
+			}
+			if githubUser != "" {
+				args = append(args, "--github", githubUser)
+			}
+			if targetDir != "" && targetDir != projectName {
+				args = append(args, "--dir", targetDir)
+			}
+
+			cmd := exec.Command(os.Args[0], args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			err := cmd.Run()
+			if err != nil {
+				fmt.Printf("Error creating project: %v\n", err)
+			}
+
+			// Go back to command selection after completion
+			m.state = ViewCommandSelection
+		}
+	}
+
+	// Update the init wizard
+	model, cmd := m.initWizard.Update(tea.Msg(msg))
+	if newWizard, ok := model.(*components.InitWizardComponent); ok {
+		m.initWizard = newWizard
+	}
+
+	return m, cmd
+}
+
+// viewInitWizard renders the init wizard view
+func (m *Model) viewInitWizard() string {
+	// Initialize init wizard if needed
+	if m.initWizard == nil {
+		m.initWizard = components.NewInitWizardComponent()
+
+		// Set up completion callback
+		m.initWizard.OnComplete = func(projectName, templateLang, authorName, githubUser, targetDir string) {
+			// Create the project using the CLI command to avoid import cycle
+			args := []string{"init", templateLang, "--name", projectName}
+			if authorName != "" {
+				args = append(args, "--author", authorName)
+			}
+			if githubUser != "" {
+				args = append(args, "--github", githubUser)
+			}
+			if targetDir != "" && targetDir != projectName {
+				args = append(args, "--dir", targetDir)
+			}
+
+			cmd := exec.Command(os.Args[0], args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			err := cmd.Run()
+			if err != nil {
+				fmt.Printf("Error creating project: %v\n", err)
+			}
+
+			// Go back to command selection after completion
+			m.state = ViewCommandSelection
+		}
+	}
+
+	return m.initWizard.View()
 }
 
 // RunBuildTUI starts the modernized interactive build TUI

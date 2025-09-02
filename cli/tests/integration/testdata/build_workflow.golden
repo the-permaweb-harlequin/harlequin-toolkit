@@ -1,0 +1,13 @@
+
+╭─ Build Configuration ────────────────────────────────╮
+│                                                     │
+│ Build Type: AOS Flavour                             │
+│ Entrypoint: /tmp/test/main.lua                        │
+│ Output: dist/                                       │
+│                                                     │
+│ WASM Target: 32-bit                                 │
+│ Stack Size: 1.0 MB                                  │
+│ Initial Memory: 2.0 MB                              │
+│ Maximum Memory: 4.0 MB                              │
+│                                                     │
+╰─────────────────────────────────────────────────────╯
