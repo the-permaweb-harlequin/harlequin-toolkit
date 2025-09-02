@@ -1,0 +1,57 @@
+{
+  "name": "ao-assemblyscript-template",
+  "sourceRoot": "ao_process_templates/languages/assemblyscript",
+  "projectType": "library",
+  "tags": ["scope:ao", "type:template", "language:assemblyscript", "language-template"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run build",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "build:wasm": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run build:wasm",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "build:ts": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run build:ts",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run dev",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run clean",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run lint",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm install",
+        "cwd": "ao_process_templates/languages/assemblyscript"
+      }
+    }
+  }
+}

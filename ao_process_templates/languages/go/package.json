@@ -1,0 +1,24 @@
+{
+  "name": "@harlequin-toolkit/ao-go-language",
+  "version": "1.0.0",
+  "description": "Go language support for AO processes",
+  "private": true,
+  "scripts": {
+    "build": "echo 'No build needed for Go templates'",
+    "build:create-package": "node ../../scripts/build-create-packages.js go",
+    "build:cli-template": "node ../../scripts/build-cli-templates.js go",
+    "test": "echo 'Tests in ../../testing/go'",
+    "clean": "echo 'No build artifacts to clean'"
+  },
+  "keywords": [
+    "go",
+    "golang",
+    "webassembly",
+    "wasm",
+    "ao",
+    "arweave",
+    "process"
+  ],
+  "author": "The Permaweb Harlequin",
+  "license": "MIT"
+}

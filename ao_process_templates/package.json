@@ -1,0 +1,43 @@
+{
+  "name": "@harlequin-toolkit/ao-process-templates",
+  "version": "1.0.0",
+  "description": "AO process templates for multiple programming languages",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run build:create-packages && pnpm run build:cli-templates",
+    "build:create-packages": "node scripts/build-create-packages.js all",
+    "build:cli-templates": "node scripts/build-cli-templates.js all",
+    "test": "nx run-many --target=test --projects=tag:language-template",
+    "test:integration": "nx run testing:test",
+    "lint": "nx run-many --target=lint --projects=tag:language-template",
+    "clean": "rm -rf create-packages cli-templates && nx run-many --target=clean --projects=tag:language-template",
+    "dev": "pnpm run build",
+    "publish:npm": "cd create-packages/create-ao-assemblyscript && npm publish && cd ../create-ao-go && npm publish",
+    "publish:cli": "echo 'CLI templates built in cli-templates/ - integrate with Harlequin CLI'"
+  },
+  "keywords": [
+    "ao",
+    "arweave",
+    "process",
+    "templates",
+    "webassembly",
+    "assemblyscript",
+    "go",
+    "lua",
+    "rust"
+  ],
+  "author": "The Permaweb Harlequin",
+  "license": "MIT",
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@nx/js": "^21.4.1",
+    "@permaweb/ao-loader": "^0.0.49",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.3.0"
+  },
+  "workspaces": [
+    "languages/*",
+    "testing"
+  ]
+}

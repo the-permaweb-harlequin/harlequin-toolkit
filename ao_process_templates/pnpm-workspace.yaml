@@ -1,0 +1,4 @@
+packages:
+  - 'languages/*'
+  - 'testing'
+  - 'create-packages/*'

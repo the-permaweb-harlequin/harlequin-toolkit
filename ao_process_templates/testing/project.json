@@ -1,0 +1,43 @@
+{
+  "name": "ao-templates-testing",
+  "sourceRoot": "ao_process_templates/testing",
+  "projectType": "library",
+  "tags": ["scope:ao", "type:testing"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run test",
+        "cwd": "ao_process_templates/testing"
+      }
+    },
+    "test:assemblyscript": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run test:assemblyscript",
+        "cwd": "ao_process_templates/testing"
+      }
+    },
+    "test:go": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run test:go",
+        "cwd": "ao_process_templates/testing"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run clean",
+        "cwd": "ao_process_templates/testing"
+      }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm install",
+        "cwd": "ao_process_templates/testing"
+      }
+    }
+  }
+}

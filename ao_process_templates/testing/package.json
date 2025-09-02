@@ -1,0 +1,23 @@
+{
+  "name": "@harlequin-toolkit/ao-templates-testing",
+  "version": "1.0.0",
+  "description": "Testing infrastructure for AO process templates",
+  "type": "module",
+  "scripts": {
+    "test": "pnpm run test:assemblyscript",
+    "test:assemblyscript": "cd assemblyscript && make wasm && tsx fixtures/test.ts",
+    "test:go": "echo 'Go tests not yet implemented'",
+    "build": "echo 'No build step needed for tests'",
+    "clean": "find . -name '*.wasm' -delete && find . -name 'node_modules' -type d -exec rm -rf {} + 2>/dev/null || true"
+  },
+  "devDependencies": {
+    "@permaweb/ao-loader": "^0.0.49",
+    "@types/node": "^20.0.0",
+    "assemblyscript": "^0.27.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "assemblyscript-json": "^1.1.0"
+  }
+}

@@ -195,5 +195,7 @@ Desktop.ini
 ### Monorepo Build Output ###
 dist/
 build/
+cli-templates
+./cli/bin
 
 # End of https://www.toptal.com/developers/gitignore/api/macOS,node

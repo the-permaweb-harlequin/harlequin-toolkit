@@ -1,0 +1,18 @@
+{
+  "entries": ["./assembly/index.ts"],
+  "options": {
+    "optimize": true,
+    "optimizeLevel": 3,
+    "shrinkLevel": 2,
+    "noAssert": true,
+    "debug": false,
+    "initialMemory": 1,
+    "maximumMemory": 1,
+    "noExportMemory": true,
+    "runtime": "stub",
+    "exportRuntime": true,
+    "stackSize": 32768,
+    "outFile": "build/process.wasm",
+    "transform": ["./lib/dist/ao-transform.js"]
+  }
+}

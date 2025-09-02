@@ -1,0 +1,43 @@
+{
+  "name": "ao-go-template",
+  "sourceRoot": "ao_process_templates/languages/go",
+  "projectType": "library",
+  "tags": ["scope:ao", "type:template", "language:go", "language-template"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd template && make build",
+        "cwd": "ao_process_templates/languages/go"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd template && make clean",
+        "cwd": "ao_process_templates/languages/go"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd template && make test",
+        "cwd": "ao_process_templates/languages/go"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd template && go vet ./... && go fmt ./...",
+        "cwd": "ao_process_templates/languages/go"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cd template && make dev",
+        "cwd": "ao_process_templates/languages/go"
+      }
+    }
+  }
+}

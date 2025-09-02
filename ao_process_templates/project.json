@@ -1,0 +1,43 @@
+{
+  "name": "ao-process-templates",
+  "sourceRoot": "ao_process_templates",
+  "projectType": "library",
+  "tags": ["scope:ao", "type:templates"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run build",
+        "cwd": "ao_process_templates"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run test",
+        "cwd": "ao_process_templates"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run lint",
+        "cwd": "ao_process_templates"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run clean",
+        "cwd": "ao_process_templates"
+      }
+    },
+    "install": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm install",
+        "cwd": "ao_process_templates"
+      }
+    }
+  }
+}
