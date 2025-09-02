@@ -1,0 +1,17 @@
+{
+  "entries": ["src/process.ts"],
+  "options": {
+    "optimize": true,
+    "optimizeLevel": 3,
+    "shrinkLevel": 2,
+    "noAssert": true,
+    "debug": false,
+    "initialMemory": 1,
+    "maximumMemory": 1,
+    "noExportMemory": true,
+    "runtime": "stub",
+    "exportRuntime": false,
+    "stackSize": 32768,
+    "outFile": "src/process.wasm"
+  }
+}
