@@ -37,7 +37,7 @@
   "release": {
     "projects": ["cli", "remote-signing"],
     "projectsRelationship": "independent",
-    "releaseTagPattern": "v{version}",
+    "releaseTagPattern": "{projectName}-v{version}",
     "changelog": {
       "workspaceChangelog": false,
       "automaticFromRef": true,
@@ -63,9 +63,9 @@
     },
     "git": {
       "commit": true,
-      "commitMessage": "chore(release): publish v{version} [skip ci]",
+      "commitMessage": "chore(release): publish {projectName}-v{version} [skip ci]",
       "tag": true,
-      "tagMessage": "Release v{version}"
+      "tagMessage": "Release {projectName}-v{version}"
     }
   },
   "generators": {
